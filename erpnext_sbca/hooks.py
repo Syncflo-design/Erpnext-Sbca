@@ -137,21 +137,45 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"POS Invoice": {
+		"after_submit": "erpnext_sbca.API.pos_invoice.post_pos_invoice",
+	},
+    "Purchase Order": {
+		"after_submit": "erpnext_sbca.API.purchase_order.post_purchase_order",
+	},
+    "Purchase Invoice": {
+		"after_submit": ["erpnext_sbca.API.purchase_invoice.post_purchase_invoice","erpnext_sbca.API.purchase_invoice.post_purchase_invoice_return"]
+	},
+    "Sales Order": {
+		"after_submit": "erpnext_sbca.API.sales_order.post_sales_order",
+	},
+    "Sales Invoice": {
+		"after_submit": ["erpnext_sbca.API.sales_invoice.post_taxinvoice","erpnext_sbca.API.sales_invoice.post_taxinvoice_return"]
+	},
+    "Item": {
+		"after_insert": ["erpnext_sbca.API.items.post_item"]
+	},
+
+}
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"erpnext_sbca.tasks.all"
-# 	],
+scheduler_events = {
+	"*/5 * * * *": [
+		"erpnext_sbca.API.sales_order.get_sales_order_from_sage",
+        "erpnext_sbca.API.purchase_order.get_purchase_order_from_sage",
+        "erpnext_sbca.API.supplier.get_supplier_from_sage",
+        "erpnext_sbca.API.account.get_accounts_from_sage",
+        "erpnext_sbca.API.item_details.get_item_inventory_qty_on_hand_from_sage",
+        "erpnext_sbca.API.item_details.update_item_job",
+        "erpnext_sbca.API.item_details.get_addition_prices_from_sage",
+        "erpnext_sbca.API.item_details.get_price_list_from_sage",
+        "erpnext_sbca.API.item_details.update_prices",
+        "erpnext_sbca.API.item_details.get_categories_from_sage",
+        "erpnext_sbca.API.item_details.get_inventory_from_sage"
+	],
 # 	"daily": [
 # 		"erpnext_sbca.tasks.daily"
 # 	],
@@ -164,7 +188,7 @@ app_license = "mit"
 # 	"monthly": [
 # 		"erpnext_sbca.tasks.monthly"
 # 	],
-# }
+}
 
 # Testing
 # -------

@@ -1,7 +1,7 @@
 import frappe
 from erpnext_sbca.API.helper_function import as_int, safe_strip, chunks
 
-def get_item_inventory_qty_on_hand():
+def get_item_inventory_qty_on_hand_from_sage():
     sage = frappe.get_doc("Sage Integration")
 
     apikey = sage.get_password("api_key")
@@ -72,7 +72,7 @@ def get_item_inventory_qty_on_hand():
     except Exception as e:
         frappe.log_error(message=str(e), title="Sage Inventory Sync Fatal Error"[:140])
 
-def get_addition_prices():
+def get_addition_prices_from_sage():
     sage = frappe.get_doc("Sage Integration")
 
     apikey = sage.get_password("api_key")
@@ -171,7 +171,7 @@ def get_addition_prices():
         frappe.msgprint(f"Errors:\n" + "\n".join(errors))
 
 
-def get_price_list():
+def get_price_list_from_sage():
     sage = frappe.get_doc("Sage Integration")
 
     apikey = sage.get_password("api_key")
@@ -351,7 +351,7 @@ def update_prices():
         frappe.log_error(f"Sage Inventory Sync Failed: {str(e)}", "Sage Sync Error")
 
 
-def get_categories():
+def get_categories_from_sage():
     sage = frappe.get_doc("Sage Integration")
 
     apikey = sage.get_password("api_key")
@@ -391,7 +391,7 @@ def get_categories():
     frappe.db.commit()
 
 
-def get_inventory():
+def get_inventory_from_sage():
     company_integrations = frappe.get_all("Company Sage Integration", fields=["name", "company"])
 
     for integration in company_integrations:
