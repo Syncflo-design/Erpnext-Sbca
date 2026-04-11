@@ -1,0 +1,55 @@
+{
+ "actions": [],
+ "creation": "2026-04-11 10:31:06.160592",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "url",
+  "section_break_zbbx",
+  "company_sage_integration"
+ ],
+ "fields": [
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "URL (Eg https://pharoh.co.za)"
+  },
+  {
+   "fieldname": "section_break_zbbx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "company_sage_integration",
+   "fieldtype": "Table",
+   "label": "Company Sage Integration",
+   "options": "Company Sage Integration"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-11 15:40:33.280500",
+ "modified_by": "doreen@9t9it.com",
+ "module": "Erpnext Sbca",
+ "name": "Erpnext Sbca Settings",
+ "owner": "doreen@9t9it.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

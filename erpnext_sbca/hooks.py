@@ -163,7 +163,7 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-	"*/5 * * * *": [
+	"all": [
 		"erpnext_sbca.API.sales_order.get_sales_order_from_sage",
         "erpnext_sbca.API.purchase_order.get_purchase_order_from_sage",
         "erpnext_sbca.API.supplier.get_supplier_from_sage",
