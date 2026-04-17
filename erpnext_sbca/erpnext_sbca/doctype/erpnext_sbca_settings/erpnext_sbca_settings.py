@@ -12,7 +12,7 @@ class ErpnextSbcaSettings(Document):
 @frappe.whitelist()
 def get_authentication_details():
 	try:
-		settings = frappe.get_single("Erpnext Sbca Settings")
+		settings = frappe.get_doc("Erpnext Sbca Settings")
 		company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
 		for company in company_settings:
 			company = frappe.get_doc("Company Sage Integration", company.name)
@@ -36,14 +36,14 @@ def get_authentication_details():
 				doc.auth_url = response.json().get("authUrl")
 				doc.session_id = response.json().get("sessionId")
 				doc.save()
-				frappe.db.commit()
 				doc.reload()
-				frappe.msgprint(f"✅ Authentication details retrieved for {company.get('company')}")
+				settings.reload()
+				return frappe.msgprint(f"✅ Authentication details retrieved for {company.get('company')}")
 			else:
 				frappe.log_error(message=f"Failed to get authentication details for {company.get('company')}: {response.text}", title=f"Sage Authentication Error for {company.get('company')}")
-				frappe.msgprint(f"❌ Failed to get authentication details for {company.get('company')}<br>Error: {response.text}")
+				return frappe.msgprint(f"❌ Failed to get authentication details for {company.get('company')}<br>Error: {response.text}")
 	except Exception as e:
 		frappe.log_error(message=str(e), title="Error in get_authentication_details")
-		frappe.msgprint(f"❌ An error occurred while getting authentication details.<br>Error: {str(e)}")
+		return frappe.msgprint(f"❌ An error occurred while getting authentication details.<br>Error: {str(e)}")
 
 

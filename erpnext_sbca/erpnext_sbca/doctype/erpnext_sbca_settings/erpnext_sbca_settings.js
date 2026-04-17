@@ -8,7 +8,7 @@ frappe.ui.form.on("Erpnext Sbca Settings", {
                 method: "erpnext_sbca.erpnext_sbca.doctype.erpnext_sbca_settings.erpnext_sbca_settings.get_authentication_details",
                 callback: function(r) {
                     if (r.message) {
-                        frappe.msgprint(r.message);
+                    frm.refresh_fields();
                     }
                 }
             });
