@@ -11,12 +11,14 @@
   "redirect_back_to",
   "tax__id",
   "sage_pos_customer_id",
+  "auth_url",
   "column_break_pivp",
   "password",
   "provider",
   "client_type",
   "company",
-  "sage_pos_customer_name"
+  "sage_pos_customer_name",
+  "session_id"
  ],
  "fields": [
   {
@@ -98,13 +100,23 @@
    "label": "Client Type",
    "options": "webapp",
    "reqd": 1
+  },
+  {
+   "fieldname": "auth_url",
+   "fieldtype": "Small Text",
+   "label": "Auth URL"
+  },
+  {
+   "fieldname": "session_id",
+   "fieldtype": "Data",
+   "label": "Session ID"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-17 10:13:38.997884",
+ "modified": "2026-04-17 11:40:26.876945",
  "modified_by": "Administrator",
  "module": "Erpnext Sbca",
  "name": "Company Sage Integration",
