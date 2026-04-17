@@ -7,11 +7,15 @@
  "engine": "InnoDB",
  "field_order": [
   "username",
+  "user_identifier",
+  "redirect_back_to",
   "api_key",
   "tax__id",
   "sage_pos_customer_id",
   "column_break_pivp",
   "password",
+  "provider",
+  "client_type",
   "company",
   "sage_pos_customer_name"
  ],
@@ -70,14 +74,35 @@
    "fieldname": "sage_pos_customer_name",
    "fieldtype": "Data",
    "label": "Sage POS Customer Name"
+  },
+  {
+   "fieldname": "user_identifier",
+   "fieldtype": "Password",
+   "label": "User Identifier"
+  },
+  {
+   "fieldname": "redirect_back_to",
+   "fieldtype": "Data",
+   "label": "Redirect Back To"
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Password",
+   "label": "Provider"
+  },
+  {
+   "fieldname": "client_type",
+   "fieldtype": "Select",
+   "label": "Client Type",
+   "options": "webapp"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-11 15:42:26.579260",
- "modified_by": "doreen@9t9it.com",
+ "modified": "2026-04-17 10:01:33.220136",
+ "modified_by": "Administrator",
  "module": "Erpnext Sbca",
  "name": "Company Sage Integration",
  "owner": "doreen@9t9it.com",
