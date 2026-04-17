@@ -11,21 +11,26 @@ def chunks(lst, n):
 
 
 def get_supplier_from_sage():
-    company_integrations = frappe.get_all("Company Sage Integration", fields=["name", "company"])
-
-    for integration in company_integrations:
+    settings = frappe.get_doc("Erpnext Sbca Settings")
+    company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+    for company in company_settings:
         try:
-            # Fetch credentials per company
-            sage = frappe.get_doc("Company Sage Integration", integration.name)
-            apikey = sage.get_password("api_key")
-            loginName = sage.username
-            loginPwd = sage.get_password("password")
+            company = frappe.get_doc("Company Sage Integration", company.name)
+            apikey = company.get_password("api_key")
+            loginName = company.username
+            loginPwd = company.get_password("password")
+            provider = company.get_password("provider")
+            session_token = company.get_password("session_id")
             lastDate = "1970-01-01"
 
             supplier_url = f"{url}/api/SuppliersSync/get-suppliers-for-erpnext?apikey={apikey}&lastDate={lastDate}"
             payload = {
                 "loginName": loginName,
-                "loginPwd": loginPwd
+                "loginPwd": loginPwd,
+                "useOAuth": True,
+                "sessionToken": session_token,
+                "provider": provider
+
             }
 
             # Fetch suppliers from Sage
@@ -108,9 +113,9 @@ def get_supplier_from_sage():
                         skipped_suppliers.append(sup_name)
 
 
-            summary = f"Company: {sage.company} | Updated: {len(updated_suppliers)}, Created: {len(created_suppliers)}, Skipped: {len(skipped_suppliers)}"
-            frappe.log_error(message=summary, title=f"Sage Supplier Sync Summary for {sage.company}"[:140])
+            summary = f"Company: {company.company} | Updated: {len(updated_suppliers)}, Created: {len(created_suppliers)}, Skipped: {len(skipped_suppliers)}"
+            frappe.log_error(message=summary, title=f"Sage Supplier Sync Summary for {company.company}"[:140])
 
         except Exception as e:
-            title = f"Sage Supplier Sync Fatal Error for {integration.company}"[:140]
+            title = f"Sage Supplier Sync Fatal Error for {company.company}"[:140]
             frappe.log_error(message=str(e), title=title)
