@@ -66,153 +66,161 @@ def post_pos_invoice(doc,method):
         if doc.is_return != 1 and doc.is_created_using_pos == 1:
             items = group_items(doc.items, doc)
             for key in items.keys():
-                if frappe.db.exists("Company Sage Integration", key):
-                    sage = frappe.get_doc("Company Sage Integration", key)
-                    apikey = sage.get_password("api_key")
-                    loginName = sage.username
-                    loginPwd = sage.get_password("password")
-                    if not apikey or not loginName or not loginPwd:
-                        frappe.throw("Sage credentials missing in Sage Integration.")
-                    url = f"{url}//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
-                    invoice_discount_amount = sum( item.get('discount', 0) for item in items[key])
-                    invoice_grand_total = sum( item.get('total', 0) for item in items[key])
-                    invoice_net_total  = sum( item.get('exclusive', 0) for item in items[key])
-                    invoice_tax_amount = sum( item.get('tax', 0) for item in items[key])
-                    payload = {
-                        "credentials": {
-                            "loginName": loginName,
-                            "loginPwd": loginPwd
-                        },
-                        "invoice": {
-                        "date": convert_timestamp(doc.creation),
-                        "inclusive": True,
-                        "discountPercentage": 0,
-                        "taxReference": "",
-                        "customerName": sage.get("sage_pos_customer_name"),
-                        "customerId":sage.get("sage_pos_customer_id"),
-                        "dueDate": convert_timestamp(doc.creation),
-                        "status": "",
-                        "customer": {
-                        "id": sage.get("sage_pos_customer_id"),
-                        "salesRepresentativeId": 0,
-                        "salesRepresentative": {
-                        "firstName": "",
-                        "lastName": "",
-                        "name": "",
-                        "category": "",
-                        "active": True,
-                        "email": "",
-                        "mobile": "",
-                        "telephone": "",
-                        "created":  convert_timestamp(doc.creation),
-                        "modified":  convert_timestamp(doc.creation),
-                        },
-                        "taxReference": "",
-                        "category": {
-                        "description": "",
-                            "id": 0,
-                            "modified":  convert_timestamp(doc.creation),
-                            "created":  convert_timestamp(doc.creation),
-                        },
-                        "name": doc.name,
-                        "contactName": "",
-                        "telephone": "",
-                        "fax": "",
-                        "mobile": "",
-                        "email": "",
-                        "active": True,
-                        "creditLimit": 0,
-                        "postalAddress01": "",
-                        "postalAddress02": "",
-                        "postalAddress03": "",
-                        "postalAddress04": "",
-                        "postalAddress05": "",
-                        "deliveryAddress01": "",
-                        "deliveryAddress02": "",
-                        "deliveryAddress03": "",
-                        "deliveryAddress04": "",
-                        "deliveryAddress05": "",
-                        "defaultPriceListId": 0,
-                        "defaultDiscountPercentage": 0,
-                        "defaultTaxTypeId": 0,
-                        "taxType": {
-                            "id": 0,
+                if frappe.db.exists("Company Sage Integration", {"company":key}):
+                    settings = frappe.get_doc("Erpnext Sbca Settings")
+                    company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+                    for company in company_settings:
+                        company = frappe.get_doc("Company Sage Integration", company.name)
+                        apikey = company.get_password("api_key")
+                        loginName = company.username
+                        loginPwd = company.get_password("password")
+                        provider = company.get_password("provider")
+                        session_token = company.get_password("session_id")
+                        if not apikey or not loginName or not loginPwd:
+                            frappe.throw("Sage credentials missing in Sage Integration.")
+                        url = f"{url}//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
+                        invoice_discount_amount = sum( item.get('discount', 0) for item in items[key])
+                        invoice_grand_total = sum( item.get('total', 0) for item in items[key])
+                        invoice_net_total  = sum( item.get('exclusive', 0) for item in items[key])
+                        invoice_tax_amount = sum( item.get('tax', 0) for item in items[key])
+                        payload = {
+                            "credentials": {
+                                "loginName": loginName,
+                                "loginPwd": loginPwd,
+                                "useOAuth": True,
+                                "sessionToken": session_token,
+                                "provider": provider
+                            },
+                            "invoice": {
+                            "date": convert_timestamp(doc.creation),
+                            "inclusive": True,
+                            "discountPercentage": 0,
+                            "taxReference": "",
+                            "customerName": sage.get("sage_pos_customer_name"),
+                            "customerId":sage.get("sage_pos_customer_id"),
+                            "dueDate": convert_timestamp(doc.creation),
+                            "status": "",
+                            "customer": {
+                            "id": sage.get("sage_pos_customer_id"),
+                            "salesRepresentativeId": 0,
+                            "salesRepresentative": {
+                            "firstName": "",
+                            "lastName": "",
                             "name": "",
-                            "percentage": 0,
+                            "category": "",
                             "active": True,
-                            "companyId": 0
-                        }
-                        },
-                        "salesRepresentative": {
-                        "id": 0,
-                        "firstName": "",
-                        "lastName": "",
-                        "name": "",
-                        "category": "",
-                        "active": True,
-                        "email": "",
-                        "mobile": "",
-                        "telephone": "",
-                        "created":  convert_timestamp(doc.creation),
-                        },
-                        "reference": "",
-                        "message": "",
-                        "discount": invoice_discount_amount,
-                        "exclusive": invoice_net_total,
-                        "tax": invoice_tax_amount,
-                        "rounding": 0,
-                        "total": invoice_grand_total,
-                        "amountDue": 0,
-                        "lines": items[key],
-                        "addresses": [
-                        {
-                            "addressType": "",
-                            "line1": "",
-                            "line2": "",
-                            "city": "",
-                            "province": "",
-                            "postalCode": "",
-                            "country": ""
-                        }
-                        ],
-                        "externalReference": "",
-                        "fromDocument": "",
-                        "fromDocumentId": 0,
-                        "fromDocumentTypeId": 0
-                    }}
-                    
-                    sage_response_text = "No response captured"
-                    payload = json.dumps(payload)
-                    try:
-                        response = frappe.make_post_request(
-                            url,
-                            data= payload,
-                            headers={
-                            "Content-Type": "application/json"
-                        })
-                        if response and response.get("success"):
-                            frappe.msgprint(
-                                f"✅ Sage Sync Successful!\n"
-                                f"Sage Order ID: {response.get('sageOrderId')}\n"
-                                f"Document Number: {response.get('documentNumber')}"
-                            )
-                            doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
-                            doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
-                            try:
-                                doc.db_set("custom_sage_sync_status", "Synced")
-                            except Exception:
-                                pass
-                            frappe.msgprint(
-                                f"✅ Sage Sync Successful!\n"
-                                        f"Sage Order ID: {response.get('sageOrderId')}\n"
-                                        f"Document Number: {response.get('documentNumber')}"
-                                    )
-                        else:
-                            error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
-                            frappe.throw(f"Sage API Error: {error_msg}")
-                    except Exception as http_err:
-                        frappe.log_error(str(http_err), "POS Sales Invoice API Error")
-                        raise
+                            "email": "",
+                            "mobile": "",
+                            "telephone": "",
+                            "created":  convert_timestamp(doc.creation),
+                            "modified":  convert_timestamp(doc.creation),
+                            },
+                            "taxReference": "",
+                            "category": {
+                            "description": "",
+                                "id": 0,
+                                "modified":  convert_timestamp(doc.creation),
+                                "created":  convert_timestamp(doc.creation),
+                            },
+                            "name": doc.name,
+                            "contactName": "",
+                            "telephone": "",
+                            "fax": "",
+                            "mobile": "",
+                            "email": "",
+                            "active": True,
+                            "creditLimit": 0,
+                            "postalAddress01": "",
+                            "postalAddress02": "",
+                            "postalAddress03": "",
+                            "postalAddress04": "",
+                            "postalAddress05": "",
+                            "deliveryAddress01": "",
+                            "deliveryAddress02": "",
+                            "deliveryAddress03": "",
+                            "deliveryAddress04": "",
+                            "deliveryAddress05": "",
+                            "defaultPriceListId": 0,
+                            "defaultDiscountPercentage": 0,
+                            "defaultTaxTypeId": 0,
+                            "taxType": {
+                                "id": 0,
+                                "name": "",
+                                "percentage": 0,
+                                "active": True,
+                                "companyId": 0
+                            }
+                            },
+                            "salesRepresentative": {
+                            "id": 0,
+                            "firstName": "",
+                            "lastName": "",
+                            "name": "",
+                            "category": "",
+                            "active": True,
+                            "email": "",
+                            "mobile": "",
+                            "telephone": "",
+                            "created":  convert_timestamp(doc.creation),
+                            },
+                            "reference": "",
+                            "message": "",
+                            "discount": invoice_discount_amount,
+                            "exclusive": invoice_net_total,
+                            "tax": invoice_tax_amount,
+                            "rounding": 0,
+                            "total": invoice_grand_total,
+                            "amountDue": 0,
+                            "lines": items[key],
+                            "addresses": [
+                            {
+                                "addressType": "",
+                                "line1": "",
+                                "line2": "",
+                                "city": "",
+                                "province": "",
+                                "postalCode": "",
+                                "country": ""
+                            }
+                            ],
+                            "externalReference": "",
+                            "fromDocument": "",
+                            "fromDocumentId": 0,
+                            "fromDocumentTypeId": 0
+                        }}
+                        
+                        sage_response_text = "No response captured"
+                        payload = json.dumps(payload)
+                        try:
+                            response = frappe.make_post_request(
+                                url,
+                                data= payload,
+                                headers={
+                                "Content-Type": "application/json"
+                            })
+                            if response and response.get("success"):
+                                frappe.msgprint(
+                                    f"✅ Sage Sync Successful!\n"
+                                    f"Sage Order ID: {response.get('sageOrderId')}\n"
+                                    f"Document Number: {response.get('documentNumber')}"
+                                )
+                                doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
+                                doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
+                                try:
+                                    doc.db_set("custom_sage_sync_status", "Synced")
+                                except Exception:
+                                    pass
+                                frappe.msgprint(
+                                    f"✅ Sage Sync Successful!\n"
+                                            f"Sage Order ID: {response.get('sageOrderId')}\n"
+                                            f"Document Number: {response.get('documentNumber')}"
+                                        )
+                            else:
+                                error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
+                                frappe.throw(f"Sage API Error: {error_msg}")
+                        except Exception as http_err:
+                            frappe.log_error(str(http_err), "POS Sales Invoice API Error")
+                            raise
     except Exception as e:
         frappe.log_error(
             message=f"POS Sales Invoice:  {doc.name}\nError: {str(e)}\nPayload: {str(payload)}",
