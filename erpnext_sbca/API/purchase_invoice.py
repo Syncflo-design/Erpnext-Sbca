@@ -1,5 +1,6 @@
 import frappe
 import json
+from erpnext_sbca.API.global_variables import *
 
 payload = {}
 
@@ -17,7 +18,7 @@ def post_purchase_invoice(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
 
-            url = f"https://pharoh.co.za/api/SupplierInvoice/post-supplierinvoice-to-sage?apikey={apikey}"
+            url = f"{url}/api/SupplierInvoice/post-supplierinvoice-to-sage?apikey={apikey}"
 
             supplier_doc = frappe.get_doc("Supplier", doc.supplier)
             sage_supplier_id = supplier_doc.get("custom_sage_supplier_id")
@@ -275,7 +276,7 @@ def post_purchase_invoice_return(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
 
-            url = f"https://pharoh.co.za/api/SupplierReturn/post-supplierreturn-to-sage?apikey={apikey}"
+            url = f"{url}/api/SupplierReturn/post-supplierreturn-to-sage?apikey={apikey}"
             supplier_id = 0
             supplier_doc = frappe.get_doc("Supplier", doc.supplier)
             sage_supplier_id = supplier_doc.get("custom_sage_supplier_id") or "0"

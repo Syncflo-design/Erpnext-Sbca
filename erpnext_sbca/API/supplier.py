@@ -1,4 +1,5 @@
 import frappe
+from erpnext_sbca.API.global_variables import *
 
 def safe_strip(value):
     return value.strip() if isinstance(value, str) else value
@@ -21,7 +22,7 @@ def get_supplier_from_sage():
             loginPwd = sage.get_password("password")
             lastDate = "1970-01-01"
 
-            supplier_url = f"https://pharoh.co.za/api/SuppliersSync/get-suppliers-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+            supplier_url = f"{url}/api/SuppliersSync/get-suppliers-for-erpnext?apikey={apikey}&lastDate={lastDate}"
             payload = {
                 "loginName": loginName,
                 "loginPwd": loginPwd

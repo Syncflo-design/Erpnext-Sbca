@@ -1,5 +1,5 @@
 import frappe
-
+from erpnext_sbca.API.global_variables import *
 
 def post_taxinvoice(doc,method):
     payload = {}
@@ -28,7 +28,7 @@ def post_taxinvoice(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
         
-            url = f"https://pharoh.co.za/api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
+            url = f"{url}/api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
         
             # 3. Validate Customer
             customer_doc = frappe.get_doc("Customer", doc.customer)
@@ -218,7 +218,7 @@ def post_taxinvoice_return(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
         
-            url = f"https://pharoh.co.za/api/CustomerReturn/post-customerreturn-to-sage?apikey={apikey}"
+            url = f"{url}/api/CustomerReturn/post-customerreturn-to-sage?apikey={apikey}"
         
             # 5. Validate Customer
             customer_doc = frappe.get_doc("Customer", doc.customer)

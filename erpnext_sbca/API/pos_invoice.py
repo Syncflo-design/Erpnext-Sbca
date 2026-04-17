@@ -1,6 +1,7 @@
 
 import frappe
 import json 
+from erpnext_sbca.API.global_variables import *
 
 payload = {}
 def convert_timestamp(ts):
@@ -72,7 +73,7 @@ def post_pos_invoice(doc,method):
                     loginPwd = sage.get_password("password")
                     if not apikey or not loginName or not loginPwd:
                         frappe.throw("Sage credentials missing in Sage Integration.")
-                    url = f"https://pharoh.co.za//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
+                    url = f"{url}//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
                     invoice_discount_amount = sum( item.get('discount', 0) for item in items[key])
                     invoice_grand_total = sum( item.get('total', 0) for item in items[key])
                     invoice_net_total  = sum( item.get('exclusive', 0) for item in items[key])

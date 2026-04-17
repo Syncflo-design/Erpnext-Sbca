@@ -1,5 +1,6 @@
 import frappe
 from erpnext_sbca.API.helper_function import as_int, safe_strip, chunks
+from erpnext_sbca.API.global_variables import *
 
 def get_item_inventory_qty_on_hand_from_sage():
     sage = frappe.get_doc("Sage Integration")
@@ -9,7 +10,7 @@ def get_item_inventory_qty_on_hand_from_sage():
     loginPwd = sage.get_password("password")
     lastDate = "1970-01-01"
 
-    inventory_url = f"https://pharoh.co.za/api/InventorySync/get-inventory-qtyonhand-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+    inventory_url = f"{url}/api/InventorySync/get-inventory-qtyonhand-for-erpnext?apikey={apikey}&lastDate={lastDate}"
 
     payload = {
         "loginName": loginName,
@@ -100,7 +101,7 @@ def get_addition_prices_from_sage():
     login_payload = {"loginName":loginName , "loginPwd":loginPwd }
 
     for pl_id in pricelist_ids:
-        item_prices_url = f"https://pharoh.co.za/api/AdditionalItemPricesSync/get-additional-prices-for-erpnext?apikey={apikey}&pricelistID={pl_id}"
+        item_prices_url = f"{url}/api/AdditionalItemPricesSync/get-additional-prices-for-erpnext?apikey={apikey}&pricelistID={pl_id}"
 
         # ✅ Add timeout and retry
         try:
@@ -177,7 +178,7 @@ def get_price_list_from_sage():
     apikey = sage.get_password("api_key")
     loginName = sage.username
     loginPwd = sage.get_password("password")
-    pricelist_url = f"https://pharoh.co.za/api/AdditionalPriceListSync/get-pricelists-for-erpnext?apikey={apikey}"
+    pricelist_url = f"{url}/api/AdditionalPriceListSync/get-pricelists-for-erpnext?apikey={apikey}"
 
     payload = {
         "loginName": loginName,
@@ -279,7 +280,7 @@ def update_prices():
     loginPwd = sage.get_password("password")
     lastDate = "1970-01-01"
 
-    inventory_url = f"https://pharoh.co.za/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+    inventory_url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}"
 
     payload = {
         "loginName": loginName,
@@ -358,7 +359,7 @@ def get_categories_from_sage():
     loginName = sage.username
     loginPwd = sage.get_password("password")
     lastDate = "1970-01-01"
-    url = f"https://pharoh.co.za/api/ItemCategorySync/get-categories-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+    url = f"{url}/api/ItemCategorySync/get-categories-for-erpnext?apikey={apikey}&lastDate={lastDate}"
 
     payload = {
         "loginName": loginName,
@@ -406,7 +407,7 @@ def get_inventory_from_sage():
             has_more = True
 
             while has_more:
-                url = f"https://pharoh.co.za/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
+                url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
                 payload = {"loginName": loginName, "loginPwd": loginPwd}
 
                 response = frappe.make_post_request(url, json=payload)

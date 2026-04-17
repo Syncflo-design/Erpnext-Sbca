@@ -12,7 +12,7 @@
   {
    "fieldname": "url",
    "fieldtype": "Data",
-   "label": "URL (Eg https://pharoh.co.za)"
+   "label": "URL (Eg {url})"
   },
   {
    "fieldname": "section_break_zbbx",

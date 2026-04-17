@@ -1,4 +1,5 @@
 import frappe
+from erpnext_sbca.API.global_variables import *
 
 def post_sales_order(doc,method):
     payload = {}
@@ -18,7 +19,7 @@ def post_sales_order(doc,method):
         if not apikey or not loginName or not loginPwd:
             frappe.throw("Sage credentials missing in Sage Integration.")
 
-        url = f"https://pharoh.co.za/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
+        url = f"{url}/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
 
         # 3. Validate Customer
         customer_doc = frappe.get_doc("Customer", doc.customer)
@@ -190,7 +191,7 @@ def get_sales_order_from_sage():
             loginPwd = sage.get_password("password")
             last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # last 30 days
 
-            so_url = f"https://pharoh.co.za/api/SalesOrder/get-salesorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
+            so_url = f"{url}/api/SalesOrder/get-salesorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
             payload = {"loginName": loginName, "loginPwd": loginPwd}
 
             # API call with debug

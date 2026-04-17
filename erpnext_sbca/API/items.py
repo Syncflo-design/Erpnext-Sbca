@@ -1,4 +1,5 @@
 import frappe
+from erpnext_sbca.API.global_variables import *
 
 def post_item(doc,method):
     try:
@@ -18,7 +19,7 @@ def post_item(doc,method):
                 tax_id=sage.tax_id
 
                 # Sage endpoint
-                url = f"https://pharoh.co.za/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
+                url = f"{url}/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
 
                 # Prepare payload
                 payload = {

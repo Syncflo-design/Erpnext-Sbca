@@ -1,5 +1,7 @@
 import frappe
+from erpnext_sbca.API.global_variables import *
 from erpnext_sbca.API.helper_function import chunks, get_parent_account, strip_if_str
+
 
 def get_accounts_from_sage():
     company_integrations = frappe.get_all("Company Sage Integration", fields=["name", "company"])
@@ -8,7 +10,7 @@ def get_accounts_from_sage():
         company_name = integration.company
         try:
             sage = frappe.get_doc("Company Sage Integration", integration.name)
-            accounts_url = f"https://pharoh.co.za/api/AccountsSync/get-accounts-for-erpnext?apikey={sage.get_password('api_key')}&lastDate=1970-01-01"
+            accounts_url = f"{url}/api/AccountsSync/get-accounts-for-erpnext?apikey={sage.get_password('api_key')}&lastDate=1970-01-01"
             payload = {"loginName": sage.username, "loginPwd": sage.get_password("password")}
             accounts = frappe.make_post_request(accounts_url, json=payload)
 

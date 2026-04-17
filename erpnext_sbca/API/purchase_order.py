@@ -1,5 +1,6 @@
 import frappe
 import json
+from erpnext_sbca.API.global_variables import *
 
 payload = {}
 
@@ -16,7 +17,7 @@ def post_purchase_order(doc,method):
         if not apikey or not loginName or not loginPwd:
             frappe.throw("Sage credentials missing in Sage Integration.")
 
-        url = f"https://pharoh.co.za/api/PurchaseOrder/post-purchaseorder-to-sage?apikey={apikey}"
+        url = f"{url}/api/PurchaseOrder/post-purchaseorder-to-sage?apikey={apikey}"
 
         supplier_doc = frappe.get_doc("Supplier", doc.supplier)
         sage_supplier_id = supplier_doc.get("custom_sage_supplier_id")
@@ -273,7 +274,7 @@ def get_purchase_order_from_sage():
             loginPwd = sage.get_password("password")
             last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # Dynamic: last 7 days
 
-            po_url = f"https://pharoh.co.za/api/PurchaseOrder/get-purchaseorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
+            po_url = f"{url}/api/PurchaseOrder/get-purchaseorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
             payload = {"loginName": loginName, "loginPwd": loginPwd}
 
             # Enhanced API call with exception handling
