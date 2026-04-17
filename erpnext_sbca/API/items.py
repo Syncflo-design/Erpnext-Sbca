@@ -63,12 +63,12 @@ def post_item(doc,method):
                         
                 
                 sync_results.append(
-                    f"✅ Sage Sync Success for <b>{doc.item_code}</b> ({sage.company})<br>Sage ID: {sage_item_id}"
+                    f"✅ Sage Sync Success for <b>{doc.item_code}</b> ({company.company})<br>Sage ID: {sage_item_id}"
                 )
 
             except Exception as e:
                 # Handle error for this company but continue with the next
-                short_title = f"Sage Sync Failed for Item {doc.item_code} ({company_doc.company})"[:140]
+                short_title = f"Sage Sync Failed for Item {doc.item_code} ({company.company})"[:140]
                 error_message = str(e)
 
                 # Try to attach response body if available
@@ -80,7 +80,7 @@ def post_item(doc,method):
                 frappe.log_error(title=short_title, message=error_message)
 
                 sync_results.append(
-                    f"❌ Failed to sync {doc.item_code} for {company_doc.company}<br>Error: "
+                    f"❌ Failed to sync {doc.item_code} for {company.company}<br>Error: "
                 )
 
         # Show all results in a single message
