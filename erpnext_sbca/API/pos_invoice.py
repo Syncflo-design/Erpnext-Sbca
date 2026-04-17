@@ -96,12 +96,12 @@ def post_pos_invoice(doc,method):
                             "inclusive": True,
                             "discountPercentage": 0,
                             "taxReference": "",
-                            "customerName": sage.get("sage_pos_customer_name"),
-                            "customerId":sage.get("sage_pos_customer_id"),
+                            "customerName": company.get("sage_pos_customer_name"),
+                            "customerId":company.get("sage_pos_customer_id"),
                             "dueDate": convert_timestamp(doc.creation),
                             "status": "",
                             "customer": {
-                            "id": sage.get("sage_pos_customer_id"),
+                            "id": company.get("sage_pos_customer_id"),
                             "salesRepresentativeId": 0,
                             "salesRepresentative": {
                             "firstName": "",
