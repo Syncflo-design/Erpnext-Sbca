@@ -11,160 +11,167 @@ def post_sales_order(doc,method):
             frappe.throw("Sales Order already synced to Sage.")
 
         # 2. Get Sage credentials
-        sage = frappe.get_doc("Sage Integration", {"company": doc.company})
-        apikey = sage.get_password("api_key")
-        loginName = sage.username
-        loginPwd = sage.get_password("password")
+        settings = frappe.get_doc("Erpnext Sbca Settings")
+        company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+        for company in company_settings:
+            company = frappe.get_doc("Company Sage Integration", company.name)
+            apikey = company.get_password("api_key")
+            loginName = company.username
+            loginPwd = company.get_password("password")
+            provider = company.get_password("provider")
+            session_token = company.get_password("session_id")
+            if not apikey or not loginName or not loginPwd:
+                frappe.throw("Sage credentials missing in Sage Integration.")
 
-        if not apikey or not loginName or not loginPwd:
-            frappe.throw("Sage credentials missing in Sage Integration.")
+            url = f"{url}/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
 
-        url = f"{url}/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
+            # 3. Validate Customer
+            customer_doc = frappe.get_doc("Customer", doc.customer)
+            sage_customer_id = customer_doc.get("custom_sage_customer_id")
 
-        # 3. Validate Customer
-        customer_doc = frappe.get_doc("Customer", doc.customer)
-        sage_customer_id = customer_doc.get("custom_sage_customer_id")
-
-        if not sage_customer_id:
-            frappe.throw(f"Sage Customer ID missing on Customer: {doc.customer}")
-
-        try:
-            customer_id = int(sage_customer_id)
-        except:
-            frappe.throw("Sage Customer ID must be numeric.")
-
-        # 3b. Validate Sales Rep
-        sage_sales_rep_id = doc.get("custom_sage_sales_rep_id")
-        if not sage_sales_rep_id:
-            frappe.throw("Sage Sales Rep ID missing on Sales Order. Please fill in the 'Sage Sales Rep ID' field.")
-
-        try:
-            sales_rep_id = int(sage_sales_rep_id)
-        except:
-            frappe.throw("Sage Sales Rep ID must be numeric.")
-
-        # 4. Get Tax Rate
-        tax_rate = 0.0
-        if doc.taxes:
-            for tax_row in doc.taxes:
-                if tax_row.charge_type == "On Net Total":
-                    tax_rate = float(tax_row.rate or 0)
-                    break
-
-        # 5. Build Lines
-        lines = []
-
-        if not doc.items:
-            frappe.throw("No items found in Sales Order.")
-
-        for item in doc.items:
-
-            item_doc = frappe.get_doc("Item", item.item_code)
-            selection_raw = item_doc.get("custom_sage_selection_id")
-
-            if not selection_raw:
-                frappe.throw(
-                    f"Sage Selection ID missing for item: {item.item_code}. "
-                    f"Please sync this item to Sage first."
-                )
+            if not sage_customer_id:
+                frappe.throw(f"Sage Customer ID missing on Customer: {doc.customer}")
 
             try:
-                selection_id = int(float(str(selection_raw).strip()))
+                customer_id = int(sage_customer_id)
             except:
-                frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
+                frappe.throw("Sage Customer ID must be numeric.")
 
-            tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
+            # 3b. Validate Sales Rep
+            sage_sales_rep_id = doc.get("custom_sage_sales_rep_id")
+            if not sage_sales_rep_id:
+                frappe.throw("Sage Sales Rep ID missing on Sales Order. Please fill in the 'Sage Sales Rep ID' field.")
 
-            item_exclusive = float(item.net_amount or item.amount or 0)
-            item_rate_excl = float(item.net_rate or item.rate or 0)
-            item_rate_incl = float(item.rate or 0)
-            item_tax = round(item_exclusive * (tax_rate / 100), 2)
-            item_total = round(item_exclusive + item_tax, 2)
-
-            lines.append({
-                "selectionId": selection_id,
-                "id": 0,
-                "lineType": 0,
-                "description": item.description or item.item_name or "",
-                "unit": item.uom or "",
-                "comments": "",
-                "quantity": float(item.qty or 0),
-                "unitPriceExclusive": item_rate_excl,
-                "unitPriceInclusive": item_rate_incl,
-                "unitCost": float(item.valuation_rate or item.net_rate or item.rate or 0),
-                "exclusive": item_exclusive,
-                "discount": float(item.discount_amount or 0),
-                "discountPercentage": float(item.discount_percentage or 0),
-                "tax": item_tax,
-                "total": item_total,
-                "taxPercentage": round(tax_rate / 100, 4),
-                "taxTypeId": tax_type_id
-            })
-
-        # 6. Build Payload
-        payload = {
-            "credentials": {
-                "loginName": loginName,
-                "loginPwd": loginPwd
-            },
-            "order": {
-                "id": 0,
-                "date": frappe.utils.formatdate(doc.transaction_date, "yyyy-MM-dd") + "T00:00:00",
-                "deliveryDate": frappe.utils.formatdate(doc.delivery_date, "yyyy-MM-dd") + "T00:00:00" if doc.delivery_date else frappe.utils.formatdate(doc.transaction_date, "yyyy-MM-dd") + "T00:00:00",
-                "customer": {
-                    "id": customer_id
-                },
-                "salesRepresentative": {
-                    "id": sales_rep_id
-                },
-                "reference": doc.name or "",
-                "message": doc.remarks or "",
-                "tax": float(doc.total_taxes_and_charges or 0),
-                "discount": float(doc.discount_amount or 0),
-                "total": float(doc.grand_total or 0),
-                "lines": lines
-            }
-        }
-
-        # 7. Send Request
-        sage_response_text = "No response captured"
-
-        try:
-            response = frappe.make_post_request(
-                url,
-                json=payload,
-                headers={"Content-Type": "application/json"}
-            )
-
-            if response and response.get("success"):
-                doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
-                doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
-                try:
-                    doc.db_set("custom_sage_sync_status", "Synced")
-                except Exception:
-                    pass
-                frappe.msgprint(
-                    f"Sage Sync Successful!\n"
-                    f"Sage Order ID: {response.get('sageOrderId')}\n"
-                    f"Document Number: {response.get('documentNumber')}"
-                )
-            else:
-                error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
-                frappe.throw(f"Sage API Error: {error_msg}")
-
-        except Exception as http_err:
-            err_str = str(http_err)
-            sage_body = ""
             try:
-                sage_body = http_err.response.text
-            except Exception:
-                sage_body = err_str
+                sales_rep_id = int(sage_sales_rep_id)
+            except:
+                frappe.throw("Sage Sales Rep ID must be numeric.")
 
-            frappe.log_error(
-                message=f"HTTP Error: {err_str}\nSage Response Body: {sage_body}\nPayload: {str(payload)}",
-                title=f"Sage API HTTP Error - {doc.name}"
-            )
-            frappe.throw(f"Sage API Error: {sage_body}")
+            # 4. Get Tax Rate
+            tax_rate = 0.0
+            if doc.taxes:
+                for tax_row in doc.taxes:
+                    if tax_row.charge_type == "On Net Total":
+                        tax_rate = float(tax_row.rate or 0)
+                        break
+
+            # 5. Build Lines
+            lines = []
+
+            if not doc.items:
+                frappe.throw("No items found in Sales Order.")
+
+            for item in doc.items:
+
+                item_doc = frappe.get_doc("Item", item.item_code)
+                selection_raw = item_doc.get("custom_sage_selection_id")
+
+                if not selection_raw:
+                    frappe.throw(
+                        f"Sage Selection ID missing for item: {item.item_code}. "
+                        f"Please sync this item to Sage first."
+                    )
+
+                try:
+                    selection_id = int(float(str(selection_raw).strip()))
+                except:
+                    frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
+
+                tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
+
+                item_exclusive = float(item.net_amount or item.amount or 0)
+                item_rate_excl = float(item.net_rate or item.rate or 0)
+                item_rate_incl = float(item.rate or 0)
+                item_tax = round(item_exclusive * (tax_rate / 100), 2)
+                item_total = round(item_exclusive + item_tax, 2)
+
+                lines.append({
+                    "selectionId": selection_id,
+                    "id": 0,
+                    "lineType": 0,
+                    "description": item.description or item.item_name or "",
+                    "unit": item.uom or "",
+                    "comments": "",
+                    "quantity": float(item.qty or 0),
+                    "unitPriceExclusive": item_rate_excl,
+                    "unitPriceInclusive": item_rate_incl,
+                    "unitCost": float(item.valuation_rate or item.net_rate or item.rate or 0),
+                    "exclusive": item_exclusive,
+                    "discount": float(item.discount_amount or 0),
+                    "discountPercentage": float(item.discount_percentage or 0),
+                    "tax": item_tax,
+                    "total": item_total,
+                    "taxPercentage": round(tax_rate / 100, 4),
+                    "taxTypeId": tax_type_id
+                })
+
+            # 6. Build Payload
+            payload = {
+                "credentials": {
+                    "loginName": loginName,
+                    "loginPwd": loginPwd,
+                    "useOAuth": True,
+                    "sessionToken": session_token,
+                    "provider": provider
+                },
+                "order": {
+                    "id": 0,
+                    "date": frappe.utils.formatdate(doc.transaction_date, "yyyy-MM-dd") + "T00:00:00",
+                    "deliveryDate": frappe.utils.formatdate(doc.delivery_date, "yyyy-MM-dd") + "T00:00:00" if doc.delivery_date else frappe.utils.formatdate(doc.transaction_date, "yyyy-MM-dd") + "T00:00:00",
+                    "customer": {
+                        "id": customer_id
+                    },
+                    "salesRepresentative": {
+                        "id": sales_rep_id
+                    },
+                    "reference": doc.name or "",
+                    "message": doc.remarks or "",
+                    "tax": float(doc.total_taxes_and_charges or 0),
+                    "discount": float(doc.discount_amount or 0),
+                    "total": float(doc.grand_total or 0),
+                    "lines": lines
+                }
+            }
+
+            # 7. Send Request
+            sage_response_text = "No response captured"
+
+            try:
+                response = frappe.make_post_request(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+
+                if response and response.get("success"):
+                    doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
+                    doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
+                    try:
+                        doc.db_set("custom_sage_sync_status", "Synced")
+                    except Exception:
+                        pass
+                    frappe.msgprint(
+                        f"Sage Sync Successful!\n"
+                        f"Sage Order ID: {response.get('sageOrderId')}\n"
+                        f"Document Number: {response.get('documentNumber')}"
+                    )
+                else:
+                    error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
+                    frappe.throw(f"Sage API Error: {error_msg}")
+
+            except Exception as http_err:
+                err_str = str(http_err)
+                sage_body = ""
+                try:
+                    sage_body = http_err.response.text
+                except Exception:
+                    sage_body = err_str
+
+                frappe.log_error(
+                    message=f"HTTP Error: {err_str}\nSage Response Body: {sage_body}\nPayload: {str(payload)}",
+                    title=f"Sage API HTTP Error - {doc.name}"
+                )
+                frappe.throw(f"Sage API Error: {sage_body}")
 
     except Exception as e:
         frappe.log_error(
@@ -181,34 +188,38 @@ def post_sales_order(doc,method):
 
 @frappe.whitelist()
 def get_sales_order_from_sage():
-    company_integrations = frappe.get_all("Company Sage Integration", fields=["name", "company"])
-
-    for integration in company_integrations:
+    settings = frappe.get_doc("Erpnext Sbca Settings")
+    company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+    for company in company_settings:
         try:
-            sage = frappe.get_doc("Company Sage Integration", integration.name)
-            apikey = sage.get_password("api_key")
-            loginName = sage.username
-            loginPwd = sage.get_password("password")
+            company = frappe.get_doc("Company Sage Integration", company.name)
+            apikey = company.get_password("api_key")
+            loginName = company.username
+            loginPwd = company.get_password("password")
+            provider = company.get_password("provider")
+            session_token = company.get_password("session_id")
             last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # last 30 days
 
             so_url = f"{url}/api/SalesOrder/get-salesorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
-            payload = {"loginName": loginName, "loginPwd": loginPwd}
+            payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": True,
+            "sessionToken": session_token,
+            "provider": provider}
 
             # API call with debug
             sales_orders = None
             try:
-                debug_start = f"API Start {sage.company}: {frappe.utils.now()} URL={so_url[:50]}..."[:140]
+                debug_start = f"API Start {company.company}: {frappe.utils.now()} URL={so_url[:50]}..."[:140]
                 frappe.log_error(debug_start, "Sage SO Sync Debug")
                 sales_orders = frappe.make_post_request(so_url, json=payload)
-                debug_resp = f"API Resp {sage.company}: {len(sales_orders) if sales_orders else 'None'} items"[:140]
+                debug_resp = f"API Resp {company.company}: {len(sales_orders) if sales_orders else 'None'} items"[:140]
                 frappe.log_error(debug_resp, "Sage SO Sync Debug")
             except Exception as api_e:
-                api_err_title = f"API Fail {sage.company}: {str(api_e)}"[:140]
+                api_err_title = f"API Fail {company.company}: {str(api_e)}"[:140]
                 frappe.log_error(api_err_title, "Sage SO Sync Error")
                 continue
 
             if not isinstance(sales_orders, list):
-                invalid_title = f"Invalid Resp {sage.company}: not list"[:140]
+                invalid_title = f"Invalid Resp {company.company}: not list"[:140]
                 frappe.log_error(invalid_title, "Sage SO Sync")
                 continue
 
@@ -239,7 +250,7 @@ def get_sales_order_from_sage():
                         continue
 
                     try:
-                        so_filter = {"custom_sage_name": so_name, "company": sage.company}
+                        so_filter = {"custom_sage_name": so_name, "company": company.company}
                         is_update = False
 
                         if frappe.db.exists("Sales Order", so_filter):
@@ -250,7 +261,7 @@ def get_sales_order_from_sage():
                             so_doc = frappe.new_doc("Sales Order")
                             so_doc.naming_series = "SAL-ORD-.YYYY.-"
                             so_doc.custom_sage_name = so_name
-                            so_doc.company = sage.company
+                            so_doc.company = company.company
 
                         # Direct field assignments
                         so_doc.customer = customer_name
@@ -328,7 +339,7 @@ def get_sales_order_from_sage():
                                 base_warehouse_name = raw_warehouse.strip() if isinstance(raw_warehouse, str) else str(raw_warehouse)
 
                             # ERPNext auto adds company suffix (first letter capitalized)
-                            company_suffix = sage.company[0].upper()
+                            company_suffix = company.company[0].upper()
                             final_warehouse_name = f"{base_warehouse_name} - {company_suffix}"
 
                             # Check cache first
@@ -341,7 +352,7 @@ def get_sales_order_from_sage():
                                 else:
                                     wh_doc = frappe.new_doc("Warehouse")
                                     wh_doc.warehouse_name = base_warehouse_name  # ERPNext adds suffix automatically
-                                    wh_doc.company = sage.company
+                                    wh_doc.company = company.company
                                     wh_doc.insert(ignore_permissions=True)
                                     warehouse_to_use = final_warehouse_name
 
@@ -383,10 +394,10 @@ def get_sales_order_from_sage():
             # Final commit for the integration
             frappe.db.commit()
 
-            summary_title = f"Sage SO Summary {sage.company}"[:140]
-            summary = f"Company: {sage.company} | Processed {len(sales_orders)} SOs | Updated: {len(updated_sos)}, Created: {len(created_sos)}, Skipped: {len(skipped_sos)}"
+            summary_title = f"Sage SO Summary {company.company}"[:140]
+            summary = f"Company: {company.company} | Processed {len(sales_orders)} SOs | Updated: {len(updated_sos)}, Created: {len(created_sos)}, Skipped: {len(skipped_sos)}"
             frappe.log_error(summary, summary_title)
 
         except Exception as e:
-            fatal_title = f"Sage SO Fatal Err {integration.company}: {str(e)}"[:140]
+            fatal_title = f"Sage SO Fatal Err {company.company}: {str(e)}"[:140]
             frappe.log_error(fatal_title)
