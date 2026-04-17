@@ -7,16 +7,17 @@ def post_item(doc,method):
         sync_results = []
 
         # Get all companies with Sage credentials
-        companies = frappe.get_all("Company Sage Integration", fields=["name", "company"])
-
-        for company_doc in companies:
+        settings = frappe.get_doc("Erpnext Sbca Settings")
+        company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+        for company in company_settings:
             try:
-                # Get credentials for this company
-                sage = frappe.get_doc("Company Sage Integration", company_doc.name)
-                apikey = sage.get_password("api_key")
-                loginName = sage.username
-                loginPwd = sage.get_password("password")
-                tax_id=sage.tax_id
+                company = frappe.get_doc("Company Sage Integration", company.name)
+                apikey = company.get_password("api_key")
+                loginName = company.username
+                loginPwd = company.get_password("password")
+                provider = company.get_password("provider")
+                session_token = company.get_password("session_id")
+                tax_id=company.get('tax_id')
 
                 # Sage endpoint
                 url = f"{url}/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
@@ -25,7 +26,10 @@ def post_item(doc,method):
                 payload = {
                     "credentials": {
                         "loginName": loginName,
-                        "loginPwd": loginPwd
+                        "loginPwd": loginPwd,
+                        "useOAuth": True,
+                        "sessionToken": session_token,
+                        "provider": provider
                     },
                     "item": {
                         "ID": 0,
