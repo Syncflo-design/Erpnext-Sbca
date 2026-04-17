@@ -303,6 +303,7 @@ def update_prices():
         loginPwd = company.get_password("password")
         provider = company.get_password("provider")
         session_token = company.get_password("session_id")
+        lastDate = "1970-01-01"
         inventory_url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}"
 
         payload = {
@@ -523,4 +524,4 @@ def get_inventory_from_sage():
                 has_more = skipQty < total
 
         except Exception as outer:
-            frappe.log_error(message=str(outer), title=f"Sage Item Sync Fatal Error for {integration.company}")
+            frappe.log_error(message=str(outer), title=f"Sage Item Sync Fatal Error for {company.company}")
