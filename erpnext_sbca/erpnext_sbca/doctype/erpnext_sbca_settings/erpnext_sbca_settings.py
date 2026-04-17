@@ -37,6 +37,7 @@ def get_authentication_details():
 				doc.session_id = response.json().get("sessionId")
 				doc.save()
 				frappe.db.commit()
+				doc.reload()
 				frappe.msgprint(f"✅ Authentication details retrieved for {company.get('company')}")
 			else:
 				frappe.log_error(message=f"Failed to get authentication details for {company.get('company')}: {response.text}", title=f"Sage Authentication Error for {company.get('company')}")
