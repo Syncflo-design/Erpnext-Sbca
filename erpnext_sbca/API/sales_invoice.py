@@ -1,5 +1,8 @@
 import frappe
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def post_taxinvoice(doc,method):
     payload = {}
@@ -138,12 +141,12 @@ def post_taxinvoice(doc,method):
                 }
             
                 # 7. Send Request
-                # Use frappe.make_post_request but catch the raw response via the session object
+                # Use make_post_request but catch the raw response via the session object
                 # that frappe exposes through frappe.local
                 sage_response_text = "No response captured"
             
                 try:
-                    response = frappe.make_post_request(
+                    response = make_post_request(
                         url,
                         json=payload,
                         headers={"Content-Type": "application/json"}
@@ -168,7 +171,7 @@ def post_taxinvoice(doc,method):
                 except Exception as http_err:
                     err_str = str(http_err)
             
-                    # frappe.make_post_request raises the HTTPError directly from requests
+                    # make_post_request raises the HTTPError directly from requests
                     # The response object is stored on the exception as .response
                     # RestrictedPython blocks underscore vars but allows attribute access
                     sage_body = ""
@@ -372,7 +375,7 @@ def post_taxinvoice_return(doc,method):
             
                 # 9. Send Request
                 try:
-                    response = frappe.make_post_request(
+                    response = make_post_request(
                         url,
                         json=payload,
                         headers={"Content-Type": "application/json"}

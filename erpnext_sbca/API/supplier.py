@@ -1,5 +1,8 @@
 import frappe
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def safe_strip(value):
     return value.strip() if isinstance(value, str) else value
@@ -34,7 +37,7 @@ def get_supplier_from_sage():
             }
 
             # Fetch suppliers from Sage
-            suppliers = frappe.make_post_request(supplier_url, json=payload)
+            suppliers = make_post_request(supplier_url, json=payload)
 
             updated_suppliers = []
             created_suppliers = []

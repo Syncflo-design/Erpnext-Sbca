@@ -1,5 +1,8 @@
 import frappe
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def post_sales_order(doc,method):
     payload = {}
@@ -137,7 +140,7 @@ def post_sales_order(doc,method):
             sage_response_text = "No response captured"
 
             try:
-                response = frappe.make_post_request(
+                response = make_post_request(
                     url,
                     json=payload,
                     headers={"Content-Type": "application/json"}
@@ -210,7 +213,7 @@ def get_sales_order_from_sage():
             try:
                 debug_start = f"API Start {company.company}: {frappe.utils.now()} URL={so_url[:50]}..."[:140]
                 frappe.log_error(debug_start, "Sage SO Sync Debug")
-                sales_orders = frappe.make_post_request(so_url, json=payload)
+                sales_orders = make_post_request(so_url, json=payload)
                 debug_resp = f"API Resp {company.company}: {len(sales_orders) if sales_orders else 'None'} items"[:140]
                 frappe.log_error(debug_resp, "Sage SO Sync Debug")
             except Exception as api_e:

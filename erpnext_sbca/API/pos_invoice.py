@@ -1,7 +1,10 @@
 
 import frappe
 import json 
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 payload = {}
 def convert_timestamp(ts):
@@ -192,7 +195,7 @@ def post_pos_invoice(doc,method):
                         sage_response_text = "No response captured"
                         payload = json.dumps(payload)
                         try:
-                            response = frappe.make_post_request(
+                            response = make_post_request(
                                 url,
                                 data= payload,
                                 headers={

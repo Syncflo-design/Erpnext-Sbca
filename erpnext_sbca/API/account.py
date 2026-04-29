@@ -1,5 +1,8 @@
 import frappe
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import chunks, get_parent_account, strip_if_str
 
 
@@ -12,7 +15,7 @@ def get_accounts_from_sage():
             sage = frappe.get_doc("Company Sage Integration", integration.name)
             accounts_url = f"{url}/api/AccountsSync/get-accounts-for-erpnext?apikey={sage.get_password('api_key')}&lastDate=1970-01-01"
             payload = {"loginName": sage.username, "loginPwd": sage.get_password("password")}
-            accounts = frappe.make_post_request(accounts_url, json=payload)
+            accounts = make_post_request(accounts_url, json=payload)
 
             if not isinstance(accounts, list):
                 frappe.log_error(message=f"Unexpected API response format for {company_name}: {accounts}", title=f"Sage Sync API Error for {company_name}")

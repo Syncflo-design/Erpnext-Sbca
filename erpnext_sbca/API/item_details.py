@@ -1,6 +1,9 @@
 import frappe
 from erpnext_sbca.API.helper_function import as_int, safe_strip, chunks
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def get_item_inventory_qty_on_hand_from_sage():
     settings = frappe.get_doc("Erpnext Sbca Settings")
@@ -36,7 +39,7 @@ def get_item_inventory_qty_on_hand_from_sage():
 
         try:
             # Fetch inventory from Sage
-            inventory = frappe.make_post_request(inventory_url, json=payload)
+            inventory = make_post_request(inventory_url, json=payload)
 
             updated_items = []
             skipped_items = []
@@ -120,7 +123,7 @@ def get_addition_prices_from_sage():
 
             # ✅ Add timeout and retry
             try:
-                item_prices_response = frappe.make_post_request(item_prices_url, json=login_payload)  # timeout in seconds
+                item_prices_response = make_post_request(item_prices_url, json=login_payload)  # timeout in seconds
             except Exception as e:
                 errors.append(f"Failed fetching item prices for Pricelist {pl_id}: {e}")
                 continue
@@ -216,7 +219,7 @@ def get_price_list_from_sage():
 
         # Make external request with timeout
         try:
-            pricelists = frappe.make_post_request(pricelist_url, json=payload)  # add timeout
+            pricelists = make_post_request(pricelist_url, json=payload)  # add timeout
         except Exception as e:
             frappe.msgprint(f"Error fetching price lists: {e}")
             frappe.response["message"] = {"created": [], "updated": [], "skipped": [], "errors": [str(e)]}
@@ -316,7 +319,7 @@ def update_prices():
 
         try:
             # Fetch items from Sage
-            inventory_items = frappe.make_post_request(inventory_url, json=payload)
+            inventory_items = make_post_request(inventory_url, json=payload)
 
             updated_items = []
             created_items = []
@@ -399,7 +402,7 @@ def get_categories_from_sage():
         }
 
         # Send POST request to Pharoh API
-        items = frappe.make_post_request(url, json=payload)
+        items = make_post_request(url, json=payload)
 
         for item_group_data in items:
             # Get item group name
@@ -443,7 +446,7 @@ def get_inventory_from_sage():
                 url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
                 payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": True, "sessionToken": session_token, "provider": provider}
 
-                response = frappe.make_post_request(url, json=payload)
+                response = make_post_request(url, json=payload)
 
                 items = response.get("items") or []
                 total = response.get("totalResults", 0)

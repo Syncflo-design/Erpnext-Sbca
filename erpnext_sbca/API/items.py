@@ -1,5 +1,8 @@
 import frappe
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def post_item(doc,method):
     try:
@@ -50,7 +53,7 @@ def post_item(doc,method):
                 }
 
                 # Send POST request
-                response = frappe.make_post_request(
+                response = make_post_request(
                     url,
                     json=payload,
                     headers={"Content-Type": "application/json"}

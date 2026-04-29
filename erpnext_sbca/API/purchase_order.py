@@ -1,6 +1,9 @@
 import frappe
 import json
-from erpnext_sbca.API.global_variables import *
+from frappe.integrations.utils import (
+	make_post_request,
+)
+url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 payload = {}
 
@@ -201,7 +204,7 @@ def post_purchase_order(doc,method):
             payload = json.dumps(payload)
             
             try:
-                response = frappe.make_post_request(
+                response = make_post_request(
 
                     url,
 
@@ -290,7 +293,7 @@ def get_purchase_order_from_sage():
             try:
                 debug_start = f"API Start {company.company}: {frappe.utils.now()} URL={po_url[:50]}..."[:140]
                 frappe.log_error(debug_start, "Sage PO Sync Debug")
-                purchase_orders = frappe.make_post_request(po_url, json=payload)
+                purchase_orders = make_post_request(po_url, json=payload)
                 debug_resp = f"API Resp {company.company}: {len(purchase_orders) if purchase_orders else 'None'} items"[:140]
                 frappe.log_error(debug_resp, "Sage PO Sync Debug")
             except Exception as api_e:
