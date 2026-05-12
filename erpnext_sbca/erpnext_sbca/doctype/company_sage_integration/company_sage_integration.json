@@ -17,6 +17,7 @@
   "api_key",
   "provider",
   "client_type",
+  "use_oauth",
   "company",
   "sage_pos_customer_name",
   "session_id"
@@ -103,6 +104,14 @@
    "reqd": 1
   },
   {
+   "default": "0",
+   "description": "Tick if this Sage tenant authenticates via OAuth. Leave unticked for basic auth.",
+   "fieldname": "use_oauth",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Use OAuth"
+  },
+  {
    "fieldname": "auth_url",
    "fieldtype": "Small Text",
    "label": "Auth URL"
@@ -123,7 +132,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 19:25:21.405974",
+ "modified": "2026-05-12 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Erpnext Sbca",
  "name": "Company Sage Integration",

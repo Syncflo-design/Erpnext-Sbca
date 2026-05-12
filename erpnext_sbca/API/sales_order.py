@@ -116,7 +116,7 @@ def post_sales_order(doc,method):
                 "credentials": {
                     "loginName": loginName,
                     "loginPwd": loginPwd,
-                    "useOAuth": False,
+                    "useOAuth": bool(company.use_oauth),
                     "sessionToken": session_token,
                     "provider": provider
                 },
@@ -209,7 +209,7 @@ def get_sales_order_from_sage():
             last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # last 30 days
 
             so_url = f"{url}/api/SalesOrder/get-salesorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
-            payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": False,
+            payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": bool(company.use_oauth),
             "sessionToken": session_token,
             "provider": provider}
 

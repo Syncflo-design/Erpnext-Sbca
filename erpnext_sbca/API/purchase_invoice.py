@@ -97,7 +97,7 @@ def post_purchase_invoice(doc,method):
                     "credentials": {
                         "loginName": loginName,
                         "loginPwd": loginPwd,
-                        "useOAuth": False,
+                        "useOAuth": bool(company.use_oauth),
                         "sessionToken": session_token,
                         "provider": provider
                     },
@@ -366,7 +366,7 @@ def post_purchase_invoice_return(doc,method):
                     "credentials": {
                         "loginName": loginName,
                         "loginPwd": loginPwd,
-                        "useOAuth": False,
+                        "useOAuth": bool(company.use_oauth),
                         "sessionToken": session_token,
                         "provider": provider
 

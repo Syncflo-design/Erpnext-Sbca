@@ -33,7 +33,7 @@ def post_item(doc,method):
                     "credentials": {
                         "loginName": loginName,
                         "loginPwd": loginPwd,
-                        "useOAuth": False,
+                        "useOAuth": bool(company.use_oauth),
                         "sessionToken": session_token,
                         "provider": provider
                     },
