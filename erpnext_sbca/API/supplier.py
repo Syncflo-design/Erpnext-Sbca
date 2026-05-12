@@ -3,6 +3,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
+from erpnext_sbca.API.helper_function import is_sync_enabled
 
 def safe_strip(value):
     return value.strip() if isinstance(value, str) else value
@@ -14,6 +15,8 @@ def chunks(lst, n):
 
 
 def get_supplier_from_sage():
+    if not is_sync_enabled("sync_suppliers"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:

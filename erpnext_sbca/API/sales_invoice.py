@@ -3,8 +3,11 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
+from erpnext_sbca.API.helper_function import is_sync_enabled
 
 def post_taxinvoice(doc,method):
+    if not is_sync_enabled("push_sales_invoice_on_submit"):
+        return
     payload = {}
 
     # Skip if return invoice
@@ -198,6 +201,8 @@ def post_taxinvoice(doc,method):
             frappe.throw(f"Sage Sync Failed: {str(e)}")
 
 def post_taxinvoice_return(doc,method):
+    if not is_sync_enabled("push_sales_invoice_return_on_submit"):
+        return
     payload = {}
 
     if doc.get("is_return"):

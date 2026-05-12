@@ -4,6 +4,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
+from erpnext_sbca.API.helper_function import is_sync_enabled
 
 payload = {}
 
@@ -11,6 +12,8 @@ def convert_timestamp(ts):
     return ts.isoformat()
 
 def post_purchase_invoice(doc,method):
+    if not is_sync_enabled("push_purchase_invoice_on_submit"):
+        return
     try:
         if doc.is_return == 0:
             settings = frappe.get_doc("Erpnext Sbca Settings")
@@ -272,6 +275,8 @@ def post_purchase_invoice(doc,method):
 
 
 def post_purchase_invoice_return(doc,method):
+    if not is_sync_enabled("push_purchase_invoice_return_on_submit"):
+        return
     try:
         if doc.is_return == 1:
             settings = frappe.get_doc("Erpnext Sbca Settings")

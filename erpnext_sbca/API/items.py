@@ -3,8 +3,11 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
+from erpnext_sbca.API.helper_function import is_sync_enabled
 
 def post_item(doc,method):
+    if not is_sync_enabled("push_item_on_insert"):
+        return
     try:
         # Collect results for all companies
         sync_results = []

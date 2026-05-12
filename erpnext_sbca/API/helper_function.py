@@ -35,3 +35,20 @@ def safe_strip(value):
 
 def as_int(value):
     return 1 if value else 0
+
+
+def is_sync_enabled(fieldname):
+    """Return True if the given Erpnext Sbca Settings toggle is on.
+
+    Defaults to True if the setting can't be read, or the field doesn't
+    exist yet (preserves prior behaviour for freshly-migrated sites that
+    haven't had a chance to opt out of anything yet).
+    """
+    import frappe
+    try:
+        value = frappe.db.get_single_value("Erpnext Sbca Settings", fieldname)
+    except Exception:
+        return True
+    if value is None:
+        return True
+    return bool(value)

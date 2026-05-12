@@ -5,6 +5,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
+from erpnext_sbca.API.helper_function import is_sync_enabled
 
 payload = {}
 def convert_timestamp(ts):
@@ -65,6 +66,8 @@ def group_items(items, doc):
     return grouped
 
 def post_pos_invoice(doc,method):
+    if not is_sync_enabled("push_pos_invoice_on_submit"):
+        return
     try:
         if doc.is_return != 1 and doc.is_created_using_pos == 1:
             items = group_items(doc.items, doc)

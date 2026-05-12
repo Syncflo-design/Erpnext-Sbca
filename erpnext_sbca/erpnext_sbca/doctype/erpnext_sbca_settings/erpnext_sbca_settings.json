@@ -5,6 +5,32 @@
  "engine": "InnoDB",
  "field_order": [
   "url",
+  "sync_toggles_section",
+  "sync_toggles_intro",
+  "pull_scheduled_section",
+  "sync_items",
+  "sync_item_categories",
+  "sync_price_lists",
+  "sync_additional_prices",
+  "sync_stock_on_hand",
+  "pull_scheduled_col_break",
+  "sync_accounts",
+  "sync_suppliers",
+  "sync_sales_orders",
+  "sync_purchase_orders",
+  "push_scheduled_section",
+  "push_item_prices_scheduled",
+  "push_item_updates_scheduled",
+  "push_triggered_section",
+  "push_item_on_insert",
+  "push_sales_order_on_submit",
+  "push_sales_invoice_on_submit",
+  "push_sales_invoice_return_on_submit",
+  "push_triggered_col_break",
+  "push_purchase_order_on_submit",
+  "push_purchase_invoice_on_submit",
+  "push_purchase_invoice_return_on_submit",
+  "push_pos_invoice_on_submit",
   "section_break_zbbx",
   "company_sage_integration"
  ],
@@ -13,6 +39,172 @@
    "fieldname": "url",
    "fieldtype": "Data",
    "label": "URL (Eg {url})"
+  },
+  {
+   "fieldname": "sync_toggles_section",
+   "fieldtype": "Section Break",
+   "label": "Sync Toggles"
+  },
+  {
+   "fieldname": "sync_toggles_intro",
+   "fieldtype": "HTML",
+   "options": "<p style=\"color:#6c757d;font-size:12px;margin:0 0 8px 0;\">Turn individual sync flows on or off. <b>Scheduled</b> = runs on a timer (about every 4 minutes). <b>Triggered</b> = runs the moment a document is submitted or inserted in ERPNext. Defaults to all on after migration.</p>"
+  },
+  {
+   "fieldname": "pull_scheduled_section",
+   "fieldtype": "Section Break",
+   "label": "Pull From Sage (Scheduled)"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_items",
+   "fieldtype": "Check",
+   "label": "Pull Items"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_item_categories",
+   "fieldtype": "Check",
+   "label": "Pull Item Categories"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_price_lists",
+   "fieldtype": "Check",
+   "label": "Pull Price Lists"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_additional_prices",
+   "fieldtype": "Check",
+   "label": "Pull Additional Prices"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_stock_on_hand",
+   "fieldtype": "Check",
+   "label": "Pull Stock-on-hand"
+  },
+  {
+   "fieldname": "pull_scheduled_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_accounts",
+   "fieldtype": "Check",
+   "label": "Pull Accounts"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_suppliers",
+   "fieldtype": "Check",
+   "label": "Pull Suppliers"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_sales_orders",
+   "fieldtype": "Check",
+   "label": "Pull Sales Orders"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_purchase_orders",
+   "fieldtype": "Check",
+   "label": "Pull Purchase Orders"
+  },
+  {
+   "fieldname": "push_scheduled_section",
+   "fieldtype": "Section Break",
+   "label": "Push To Sage (Scheduled)"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "push_item_prices_scheduled",
+   "fieldtype": "Check",
+   "label": "Push Item Prices"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "push_item_updates_scheduled",
+   "fieldtype": "Check",
+   "label": "Push Item Updates"
+  },
+  {
+   "fieldname": "push_triggered_section",
+   "fieldtype": "Section Break",
+   "label": "Push To Sage (Triggered)"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_item_on_insert",
+   "fieldtype": "Check",
+   "label": "Push Item on Insert"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_sales_order_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Sales Order on Submit"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_sales_invoice_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Sales Invoice on Submit"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_sales_invoice_return_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Sales Invoice Return on Submit"
+  },
+  {
+   "fieldname": "push_triggered_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_purchase_order_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Purchase Order on Submit"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_purchase_invoice_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Purchase Invoice on Submit"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_purchase_invoice_return_on_submit",
+   "fieldtype": "Check",
+   "label": "Push Purchase Invoice Return on Submit"
+  },
+  {
+   "default": "1",
+   "description": "Triggered",
+   "fieldname": "push_pos_invoice_on_submit",
+   "fieldtype": "Check",
+   "label": "Push POS Invoice on Submit"
   },
   {
    "fieldname": "section_break_zbbx",
@@ -29,7 +221,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-11 15:40:33.280500",
+ "modified": "2026-05-12 00:00:00.000000",
  "modified_by": "doreen@9t9it.com",
  "module": "Erpnext Sbca",
  "name": "Erpnext Sbca Settings",

@@ -1,11 +1,13 @@
 import frappe
-from erpnext_sbca.API.helper_function import as_int, safe_strip, chunks
+from erpnext_sbca.API.helper_function import as_int, is_sync_enabled, safe_strip, chunks
 from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
 def get_item_inventory_qty_on_hand_from_sage():
+    if not is_sync_enabled("sync_stock_on_hand"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -83,6 +85,8 @@ def get_item_inventory_qty_on_hand_from_sage():
             frappe.log_error(message=str(e), title="Sage Inventory Sync Fatal Error"[:140])
 
 def get_addition_prices_from_sage():
+    if not is_sync_enabled("sync_additional_prices"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -191,6 +195,8 @@ def get_addition_prices_from_sage():
 
 
 def get_price_list_from_sage():
+    if not is_sync_enabled("sync_price_lists"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -286,6 +292,8 @@ def get_price_list_from_sage():
 
 
 def update_item_job():
+    if not is_sync_enabled("push_item_updates_scheduled"):
+        return
     cron = frappe.get_doc("Scheduled Job Type","update_item_add_info_cron")
     cron.reload()
     cron.stopped = 0
@@ -297,6 +305,8 @@ def update_item_job():
 
 
 def update_prices():
+    if not is_sync_enabled("push_item_prices_scheduled"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -381,6 +391,8 @@ def update_prices():
 
 
 def get_categories_from_sage():
+    if not is_sync_enabled("sync_item_categories"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -428,6 +440,8 @@ def get_categories_from_sage():
 
 
 def get_inventory_from_sage():
+    if not is_sync_enabled("sync_items"):
+        return
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:

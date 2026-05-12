@@ -3,10 +3,12 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import chunks, get_parent_account, strip_if_str
+from erpnext_sbca.API.helper_function import chunks, get_parent_account, is_sync_enabled, strip_if_str
 
 
 def get_accounts_from_sage():
+    if not is_sync_enabled("sync_accounts"):
+        return
     company_integrations = frappe.get_all("Company Sage Integration", fields=["name", "company"])
 
     for integration in company_integrations:
