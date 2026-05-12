@@ -99,7 +99,7 @@ def post_purchase_order(doc,method):
                 "credentials": {
                     "loginName": loginName,
                     "loginPwd": loginPwd,
-                    "useOAuth": True,
+                    "useOAuth": False,
                     "sessionToken": session_token,
                     "provider": provider
 
@@ -289,7 +289,7 @@ def get_purchase_order_from_sage():
             last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # Dynamic: last 7 days
 
             po_url = f"{url}/api/PurchaseOrder/get-purchaseorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
-            payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": True,
+            payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider}
 

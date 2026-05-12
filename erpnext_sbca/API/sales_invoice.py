@@ -118,7 +118,7 @@ def post_taxinvoice(doc,method):
                     "credentials": {
                         "loginName": loginName,
                         "loginPwd": loginPwd,
-                        "useOAuth": True,
+                        "useOAuth": False,
                         "sessionToken": session_token,
                         "provider": provider
 
@@ -348,7 +348,7 @@ def post_taxinvoice_return(doc,method):
                     "credentials": {
                         "loginName": loginName,
                         "loginPwd": loginPwd,
-                        "useOAuth": True,
+                        "useOAuth": False,
                         "sessionToken": session_token,
                         "provider": provider
                     },

@@ -33,7 +33,7 @@ def get_supplier_from_sage():
             payload = {
                 "loginName": loginName,
                 "loginPwd": loginPwd,
-                "useOAuth": True,
+                "useOAuth": False,
                 "sessionToken": session_token,
                 "provider": provider
 

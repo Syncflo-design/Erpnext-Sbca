@@ -23,7 +23,7 @@ def get_item_inventory_qty_on_hand_from_sage():
         payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
-            "useOAuth": True,
+            "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider
         }
@@ -117,7 +117,7 @@ def get_addition_prices_from_sage():
         login_payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
-            "useOAuth": True,
+            "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider
         }
@@ -211,7 +211,7 @@ def get_price_list_from_sage():
         payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
-            "useOAuth": True,
+            "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider
         }
@@ -322,7 +322,7 @@ def update_prices():
         payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
-            "useOAuth": True,
+            "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider
         }
@@ -408,7 +408,7 @@ def get_categories_from_sage():
         payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
-            "useOAuth": True,
+            "useOAuth": False,
             "sessionToken": session_token,
             "provider": provider
         }
@@ -458,7 +458,7 @@ def get_inventory_from_sage():
 
             while has_more:
                 endpoint_url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
-                payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": True, "sessionToken": session_token, "provider": provider}
+                payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": False, "sessionToken": session_token, "provider": provider}
 
                 response = make_post_request(endpoint_url, json=payload)
 
