@@ -28,7 +28,7 @@ def post_purchase_invoice(doc,method):
                 if not apikey or not loginName or not loginPwd:
                     frappe.throw("Sage credentials missing in Sage Integration.")
 
-                url = f"{url}/api/SupplierInvoice/post-supplierinvoice-to-sage?apikey={apikey}"
+                endpoint_url = f"{url}/api/SupplierInvoice/post-supplierinvoice-to-sage?apikey={apikey}"
 
                 supplier_doc = frappe.get_doc("Supplier", doc.supplier)
                 sage_supplier_id = supplier_doc.get("custom_sage_supplier_id")
@@ -212,7 +212,7 @@ def post_purchase_invoice(doc,method):
 
                     response = make_post_request(
 
-                        url,
+                        endpoint_url,
 
                         data=payload,
 
@@ -291,7 +291,7 @@ def post_purchase_invoice_return(doc,method):
                 if not apikey or not loginName or not loginPwd:
                     frappe.throw("Sage credentials missing in Sage Integration.")
 
-                url = f"{url}/api/SupplierReturn/post-supplierreturn-to-sage?apikey={apikey}"
+                endpoint_url = f"{url}/api/SupplierReturn/post-supplierreturn-to-sage?apikey={apikey}"
                 supplier_id = 0
                 supplier_doc = frappe.get_doc("Supplier", doc.supplier)
                 sage_supplier_id = supplier_doc.get("custom_sage_supplier_id") or "0"
@@ -477,15 +477,15 @@ def post_purchase_invoice_return(doc,method):
                 payload = json.dumps(payload)
                 try:
                     response = make_post_request(
-            
-                        url,
-            
+
+                        endpoint_url,
+
                         data= payload,
-            
+
                         headers={
             "Content-Type": "application/json"
         }
-            
+
                     )
                     if response and response.get("success"):
 

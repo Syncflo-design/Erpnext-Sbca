@@ -27,7 +27,7 @@ def post_purchase_order(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
 
-            url = f"{url}/api/PurchaseOrder/post-purchaseorder-to-sage?apikey={apikey}"
+            endpoint_url = f"{url}/api/PurchaseOrder/post-purchaseorder-to-sage?apikey={apikey}"
 
             supplier_doc = frappe.get_doc("Supplier", doc.supplier)
             sage_supplier_id = supplier_doc.get("custom_sage_supplier_id")
@@ -209,7 +209,7 @@ def post_purchase_order(doc,method):
             try:
                 response = make_post_request(
 
-                    url,
+                    endpoint_url,
 
                     data=payload,
 

@@ -38,7 +38,7 @@ def post_taxinvoice(doc,method):
                 if not apikey or not loginName or not loginPwd:
                     frappe.throw("Sage credentials missing in Sage Integration.")
             
-                url = f"{url}/api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
+                endpoint_url = f"{url}/api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
             
                 # 3. Validate Customer
                 customer_doc = frappe.get_doc("Customer", doc.customer)
@@ -147,10 +147,10 @@ def post_taxinvoice(doc,method):
                 # Use make_post_request but catch the raw response via the session object
                 # that frappe exposes through frappe.local
                 sage_response_text = "No response captured"
-            
+
                 try:
                     response = make_post_request(
-                        url,
+                        endpoint_url,
                         json=payload,
                         headers={"Content-Type": "application/json"}
                     )
@@ -238,7 +238,7 @@ def post_taxinvoice_return(doc,method):
                 if not apikey or not loginName or not loginPwd:
                     frappe.throw("Sage credentials missing in Sage Integration.")
             
-                url = f"{url}/api/CustomerReturn/post-customerreturn-to-sage?apikey={apikey}"
+                endpoint_url = f"{url}/api/CustomerReturn/post-customerreturn-to-sage?apikey={apikey}"
             
                 # 5. Validate Customer
                 customer_doc = frappe.get_doc("Customer", doc.customer)
@@ -381,7 +381,7 @@ def post_taxinvoice_return(doc,method):
                 # 9. Send Request
                 try:
                     response = make_post_request(
-                        url,
+                        endpoint_url,
                         json=payload,
                         headers={"Content-Type": "application/json"}
                     )

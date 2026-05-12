@@ -26,7 +26,7 @@ def post_item(doc,method):
                 tax_id=company.get('tax_id')
 
                 # Sage endpoint
-                url = f"{url}/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
+                endpoint_url = f"{url}/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
 
                 # Prepare payload
                 payload = {
@@ -57,7 +57,7 @@ def post_item(doc,method):
 
                 # Send POST request
                 response = make_post_request(
-                    url,
+                    endpoint_url,
                     json=payload,
                     headers={"Content-Type": "application/json"}
                 )

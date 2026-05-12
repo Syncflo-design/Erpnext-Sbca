@@ -403,7 +403,7 @@ def get_categories_from_sage():
         provider = company.get_password("provider")
         session_token = company.get_password("session_id")
         lastDate = "1970-01-01"
-        url = f"{url}/api/ItemCategorySync/get-categories-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+        endpoint_url = f"{url}/api/ItemCategorySync/get-categories-for-erpnext?apikey={apikey}&lastDate={lastDate}"
 
         payload = {
             "loginName": loginName,
@@ -414,7 +414,7 @@ def get_categories_from_sage():
         }
 
         # Send POST request to Pharoh API
-        items = make_post_request(url, json=payload)
+        items = make_post_request(endpoint_url, json=payload)
 
         for item_group_data in items:
             # Get item group name
@@ -457,10 +457,10 @@ def get_inventory_from_sage():
             has_more = True
 
             while has_more:
-                url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
+                endpoint_url = f"{url}/api/InventorySync/get-inventory-for-erpnext?apikey={apikey}&lastDate={lastDate}&skipQty={skipQty}"
                 payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": True, "sessionToken": session_token, "provider": provider}
 
-                response = make_post_request(url, json=payload)
+                response = make_post_request(endpoint_url, json=payload)
 
                 items = response.get("items") or []
                 total = response.get("totalResults", 0)

@@ -29,7 +29,7 @@ def post_sales_order(doc,method):
             if not apikey or not loginName or not loginPwd:
                 frappe.throw("Sage credentials missing in Sage Integration.")
 
-            url = f"{url}/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
+            endpoint_url = f"{url}/api/SalesOrder/post-salesorder-to-sage?apikey={apikey}"
 
             # 3. Validate Customer
             customer_doc = frappe.get_doc("Customer", doc.customer)
@@ -144,7 +144,7 @@ def post_sales_order(doc,method):
 
             try:
                 response = make_post_request(
-                    url,
+                    endpoint_url,
                     json=payload,
                     headers={"Content-Type": "application/json"}
                 )

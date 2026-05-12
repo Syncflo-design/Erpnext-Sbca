@@ -84,7 +84,7 @@ def post_pos_invoice(doc,method):
                         session_token = company.get_password("session_id")
                         if not apikey or not loginName or not loginPwd:
                             frappe.throw("Sage credentials missing in Sage Integration.")
-                        url = f"{url}//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
+                        endpoint_url = f"{url}//api/TaxInvoice/post-taxinvoice-to-sage?apikey={apikey}"
                         invoice_discount_amount = sum( item.get('discount', 0) for item in items[key])
                         invoice_grand_total = sum( item.get('total', 0) for item in items[key])
                         invoice_net_total  = sum( item.get('exclusive', 0) for item in items[key])
@@ -199,7 +199,7 @@ def post_pos_invoice(doc,method):
                         payload = json.dumps(payload)
                         try:
                             response = make_post_request(
-                                url,
+                                endpoint_url,
                                 data= payload,
                                 headers={
                                 "Content-Type": "application/json"
