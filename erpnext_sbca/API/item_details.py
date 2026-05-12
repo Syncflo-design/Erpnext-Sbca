@@ -34,11 +34,6 @@ def get_item_inventory_qty_on_hand_from_sage():
             except (TypeError, ValueError):
                 return 0.0
 
-        def chunks(lst, n):
-            """Yield successive n-sized chunks from lst."""
-            for i in range(0, len(lst), n):
-                yield lst[i:i + n]
-
         try:
             # Fetch inventory from Sage
             inventory = make_post_request(inventory_url, json=payload)
@@ -183,15 +178,6 @@ def get_addition_prices_from_sage():
                     errors.append(f"Error creating Item Price for {item_code}: {e}")
                     skipped.append(item_code)
 
-        # Display results
-        if created:
-            frappe.msgprint(f"Created Item Prices: {', '.join(created)}")
-        if updated:
-            frappe.msgprint(f"Updated Item Prices: {', '.join(updated)}")
-        if skipped:
-            frappe.msgprint(f"Skipped: {', '.join(skipped)}")
-        if errors:
-            frappe.msgprint(f"Errors:\n" + "\n".join(errors))
 
 
 def get_price_list_from_sage():
@@ -227,7 +213,6 @@ def get_price_list_from_sage():
         try:
             pricelists = make_post_request(pricelist_url, json=payload)  # add timeout
         except Exception as e:
-            frappe.msgprint(f"Error fetching price lists: {e}")
             frappe.response["message"] = {"created": [], "updated": [], "skipped": [], "errors": [str(e)]}
             frappe.throw(f"Error fetching price lists: {e}")
 
@@ -272,16 +257,6 @@ def get_price_list_from_sage():
             except Exception as e:
                 errors.append(f"Error creating {pl_name}: {e}")
                 skipped.append(pl_name)
-
-        # Display results
-        if created:
-            frappe.msgprint(f"Created: {', '.join(created)}")
-        if updated:
-            frappe.msgprint(f"Updated: {', '.join(updated)}")
-        if skipped:
-            frappe.msgprint(f"Skipped: {', '.join(skipped)}")
-        if errors:
-            frappe.msgprint(f"Errors:\n" + "\n".join(errors))
 
         frappe.response["message"] = {
             "created": created,

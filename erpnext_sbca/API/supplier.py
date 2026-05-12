@@ -3,15 +3,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import is_sync_enabled
-
-def safe_strip(value):
-    return value.strip() if isinstance(value, str) else value
-
-def chunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+from erpnext_sbca.API.helper_function import is_sync_enabled, safe_strip, chunks
 
 
 def get_supplier_from_sage():

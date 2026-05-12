@@ -6,14 +6,25 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-payload = {}
 
 def convert_timestamp(ts):
     return ts.isoformat()
 
-def post_purchase_order(doc,method):
+def post_purchase_order(doc, method):
+    """Wrapper: enqueue the push so we don't block the Purchase Order submit transaction."""
     if not is_sync_enabled("push_purchase_order_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.purchase_order._post_purchase_order_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_purchase_order_worker(doc_name):
+    doc = frappe.get_doc("Purchase Order", doc_name)
     try:
         settings = frappe.get_doc("Erpnext Sbca Settings")
         company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
@@ -229,16 +240,6 @@ def post_purchase_order(doc,method):
                     except Exception:
 
                         pass
-
-                    frappe.msgprint(
-
-                        f"✅ Sage Sync Successful!\n"
-
-                        f"Sage Order ID: {response.get('sageOrderId')}\n"
-
-                        f"Document Number: {response.get('documentNumber')}"
-
-                    )
 
                 else:
 

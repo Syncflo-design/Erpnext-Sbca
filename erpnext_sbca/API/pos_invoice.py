@@ -7,7 +7,7 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-payload = {}
+
 def convert_timestamp(ts):
     return frappe.utils.get_datetime(ts).isoformat()
 
@@ -65,9 +65,21 @@ def group_items(items, doc):
         })
     return grouped
 
-def post_pos_invoice(doc,method):
+def post_pos_invoice(doc, method):
+    """Wrapper: enqueue the push so we don't block the POS Invoice submit transaction."""
     if not is_sync_enabled("push_pos_invoice_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.pos_invoice._post_pos_invoice_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_pos_invoice_worker(doc_name):
+    doc = frappe.get_doc("POS Invoice", doc_name)
     try:
         if doc.is_return != 1 and doc.is_created_using_pos == 1:
             items = group_items(doc.items, doc)
@@ -205,22 +217,12 @@ def post_pos_invoice(doc,method):
                                 "Content-Type": "application/json"
                             })
                             if response and response.get("success"):
-                                frappe.msgprint(
-                                    f"✅ Sage Sync Successful!\n"
-                                    f"Sage Order ID: {response.get('sageOrderId')}\n"
-                                    f"Document Number: {response.get('documentNumber')}"
-                                )
                                 doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
                                 doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
                                 try:
                                     doc.db_set("custom_sage_sync_status", "Synced")
                                 except Exception:
                                     pass
-                                frappe.msgprint(
-                                    f"✅ Sage Sync Successful!\n"
-                                            f"Sage Order ID: {response.get('sageOrderId')}\n"
-                                            f"Document Number: {response.get('documentNumber')}"
-                                        )
                             else:
                                 error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
                                 frappe.throw(f"Sage API Error: {error_msg}")

@@ -5,17 +5,29 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-def post_taxinvoice(doc,method):
+def post_taxinvoice(doc, method):
+    """Wrapper: enqueue the push so we don't block the Sales Invoice submit transaction."""
     if not is_sync_enabled("push_sales_invoice_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.sales_invoice._post_taxinvoice_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_taxinvoice_worker(doc_name):
+    doc = frappe.get_doc("Sales Invoice", doc_name)
     payload = {}
 
-    # Skip if return invoice
+    # Skip if return invoice or POS invoice (handled by other workers)
     if doc.get("is_return"):
-        frappe.msgprint("Return invoice - skipping Sage sync.")
+        return
 
     elif doc.get("is_pos"):
-        frappe.msgprint("POS invoice - skipping Tax Invoice sync.")
+        return
 
     else:
         
@@ -162,11 +174,6 @@ def post_taxinvoice(doc,method):
                             doc.db_set("custom_sage_sync_status", "Synced")
                         except Exception:
                             pass
-                        frappe.msgprint(
-                            f"Sage Sync Successful!\n"
-                            f"Sage Order ID: {response.get('sageOrderId')}\n"
-                            f"Document Number: {response.get('documentNumber')}"
-                        )
                     else:
                         error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
                         frappe.throw(f"Sage API Error: {error_msg}")
@@ -200,9 +207,21 @@ def post_taxinvoice(doc,method):
                 pass
             frappe.throw(f"Sage Sync Failed: {str(e)}")
 
-def post_taxinvoice_return(doc,method):
+def post_taxinvoice_return(doc, method):
+    """Wrapper: enqueue the push so we don't block the Sales Invoice (return) submit transaction."""
     if not is_sync_enabled("push_sales_invoice_return_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.sales_invoice._post_taxinvoice_return_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_taxinvoice_return_worker(doc_name):
+    doc = frappe.get_doc("Sales Invoice", doc_name)
     payload = {}
 
     if doc.get("is_return"):
@@ -393,11 +412,6 @@ def post_taxinvoice_return(doc,method):
                             doc.db_set("custom_sage_sync_status", "Synced")
                         except Exception:
                             pass
-                        frappe.msgprint(
-                            f"Sage Sync Successful!\n"
-                            f"Sage Return ID: {response.get('sageOrderId')}\n"
-                            f"Document Number: {response.get('documentNumber')}"
-                        )
                     else:
                         error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
                         frappe.throw(f"Sage API Error: {error_msg}")

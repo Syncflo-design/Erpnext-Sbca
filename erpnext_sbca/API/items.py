@@ -5,13 +5,22 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-def post_item(doc,method):
+def post_item(doc, method):
+    """Wrapper: enqueue the push so we don't block the Item insert transaction."""
     if not is_sync_enabled("push_item_on_insert"):
         return
-    try:
-        # Collect results for all companies
-        sync_results = []
+    frappe.enqueue(
+        "erpnext_sbca.API.items._post_item_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
 
+
+def _post_item_worker(doc_name):
+    doc = frappe.get_doc("Item", doc_name)
+    try:
         # Get all companies with Sage credentials
         settings = frappe.get_doc("Erpnext Sbca Settings")
         company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
@@ -68,10 +77,6 @@ def post_item(doc,method):
                         frappe.db.set_value("Item", doc.name, "custom_sage_selection_id", str(sage_item_id))
                         
                 
-                sync_results.append(
-                    f"✅ Sage Sync Success for <b>{doc.item_code}</b> ({company.company})<br>Sage ID: {sage_item_id}"
-                )
-
             except Exception as e:
                 # Handle error for this company but continue with the next
                 short_title = f"Sage Sync Failed for Item {doc.item_code} ({company.company})"[:140]
@@ -84,14 +89,6 @@ def post_item(doc,method):
                     pass
 
                 frappe.log_error(title=short_title, message=error_message)
-
-                sync_results.append(
-                    f"❌ Failed to sync {doc.item_code} for {company.company}<br>Error: "
-                )
-
-        # Show all results in a single message
-        if sync_results:
-            frappe.msgprint("<br><br>".join(sync_results))
 
     except Exception as e:
         frappe.log_error(title="Sage Inventory Sync Fatal Error"[:140], message=str(e))

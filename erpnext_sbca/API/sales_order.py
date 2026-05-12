@@ -5,9 +5,21 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-def post_sales_order(doc,method):
+def post_sales_order(doc, method):
+    """Wrapper: enqueue the push so we don't block the Sales Order submit transaction."""
     if not is_sync_enabled("push_sales_order_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.sales_order._post_sales_order_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_sales_order_worker(doc_name):
+    doc = frappe.get_doc("Sales Order", doc_name)
     payload = {}
 
     try:
@@ -156,11 +168,6 @@ def post_sales_order(doc,method):
                         doc.db_set("custom_sage_sync_status", "Synced")
                     except Exception:
                         pass
-                    frappe.msgprint(
-                        f"Sage Sync Successful!\n"
-                        f"Sage Order ID: {response.get('sageOrderId')}\n"
-                        f"Document Number: {response.get('documentNumber')}"
-                    )
                 else:
                     error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
                     frappe.throw(f"Sage API Error: {error_msg}")

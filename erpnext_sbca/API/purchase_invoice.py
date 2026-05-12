@@ -6,14 +6,25 @@ from frappe.integrations.utils import (
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
 
-payload = {}
 
 def convert_timestamp(ts):
     return ts.isoformat()
 
-def post_purchase_invoice(doc,method):
+def post_purchase_invoice(doc, method):
+    """Wrapper: enqueue the push so we don't block the Purchase Invoice submit transaction."""
     if not is_sync_enabled("push_purchase_invoice_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.purchase_invoice._post_purchase_invoice_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_purchase_invoice_worker(doc_name):
+    doc = frappe.get_doc("Purchase Invoice", doc_name)
     try:
         if doc.is_return == 0:
             settings = frappe.get_doc("Erpnext Sbca Settings")
@@ -233,16 +244,6 @@ def post_purchase_invoice(doc,method):
 
                             pass
 
-                        frappe.msgprint(
-
-                            f"✅ Sage Sync Successful!\n"
-
-                            f"Sage Order ID: {response.get('sageOrderId')}\n"
-
-                            f"Document Number: {response.get('documentNumber')}"
-
-                        )
-
                     else:
 
                         error_msg = response.get("errorMessage") or str(response) if response else "Unknown"
@@ -274,9 +275,21 @@ def post_purchase_invoice(doc,method):
         doc.reload()
 
 
-def post_purchase_invoice_return(doc,method):
+def post_purchase_invoice_return(doc, method):
+    """Wrapper: enqueue the push so we don't block the Purchase Invoice (return) submit transaction."""
     if not is_sync_enabled("push_purchase_invoice_return_on_submit"):
         return
+    frappe.enqueue(
+        "erpnext_sbca.API.purchase_invoice._post_purchase_invoice_return_worker",
+        queue="default",
+        timeout=600,
+        enqueue_after_commit=True,
+        doc_name=doc.name,
+    )
+
+
+def _post_purchase_invoice_return_worker(doc_name):
+    doc = frappe.get_doc("Purchase Invoice", doc_name)
     try:
         if doc.is_return == 1:
             settings = frappe.get_doc("Erpnext Sbca Settings")
@@ -489,15 +502,6 @@ def post_purchase_invoice_return(doc,method):
                     )
                     if response and response.get("success"):
 
-                        frappe.msgprint(
-
-                            f"✅ Sage Sync Successful!\n"
-
-                            f"Sage Order ID: {response.get('sageOrderId')}\n"
-
-                            f"Document Number: {response.get('documentNumber')}"
-
-                        )
                         doc.db_set("custom_sage_order_id", str(response.get("sageOrderId") or ""))
 
                         doc.db_set("custom_sage_document_number", str(response.get("documentNumber") or ""))
@@ -509,16 +513,6 @@ def post_purchase_invoice_return(doc,method):
                         except Exception:
 
                             pass
-
-                        frappe.msgprint(
-
-                            f"✅ Sage Sync Successful!\n"
-
-                            f"Sage Order ID: {response.get('sageOrderId')}\n"
-
-                            f"Document Number: {response.get('documentNumber')}"
-
-                        )
 
                     else:
 
