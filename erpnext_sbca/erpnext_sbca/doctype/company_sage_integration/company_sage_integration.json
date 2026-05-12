@@ -20,7 +20,9 @@
   "use_oauth",
   "company",
   "sage_pos_customer_name",
-  "session_id"
+  "session_id",
+  "strip_defaults_on_next_sync",
+  "setup_complete"
  ],
  "fields": [
   {
@@ -126,6 +128,23 @@
    "fieldtype": "Password",
    "label": "API Key",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Destructive. Tick + Save. On the next account sync, all accounts marked Ignore in the Accounts tab cleanup table will be deleted (best-effort; accounts referenced in transactions are kept). Auto-unticks after the run and sets Setup Complete.",
+   "fieldname": "strip_defaults_on_next_sync",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Apply Account Cleanup on Next Sync"
+  },
+  {
+   "default": "0",
+   "description": "Auto-set after the first successful cleanup + Sage import. Once true, the sync runs in strict-additive mode for this Company: new Sage accounts get added, but nothing is ever deleted or modified.",
+   "fieldname": "setup_complete",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Setup Complete",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

@@ -4,6 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "connection_tab",
   "url",
   "sync_toggles_section",
   "sync_toggles_intro",
@@ -32,9 +33,18 @@
   "push_purchase_invoice_return_on_submit",
   "push_pos_invoice_on_submit",
   "section_break_zbbx",
-  "company_sage_integration"
+  "company_sage_integration",
+  "accounts_tab",
+  "active_company",
+  "accounts_intro",
+  "account_cleanup_choices"
  ],
  "fields": [
+  {
+   "fieldname": "connection_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connection"
+  },
   {
    "fieldname": "url",
    "fieldtype": "Data",
@@ -215,6 +225,30 @@
    "fieldtype": "Table",
    "label": "Company Sage Integration",
    "options": "Company Sage Integration"
+  },
+  {
+   "fieldname": "accounts_tab",
+   "fieldtype": "Tab Break",
+   "label": "Accounts"
+  },
+  {
+   "description": "Pick which Company's chart of accounts to work on. Only Companies that have a Company Sage Integration row AND at least one successful Sage account sync are eligible.",
+   "fieldname": "active_company",
+   "fieldtype": "Link",
+   "label": "Active Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "accounts_intro",
+   "fieldtype": "HTML",
+   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p><b>Phase 1 — Setup (one-time per Company, destructive).</b><br>Populate the cleanup table below for the Active Company, mark each existing account <i>Keep</i> or <i>Ignore</i>, then tick <b>Apply Account Cleanup on Next Sync</b> on the matching Company Sage Integration row. The next sync deletes the Ignore rows (best-effort — accounts linked to transactions are kept), imports all Sage accounts, and flips <b>Setup Complete</b> to true.</p><p><b>Phase 2 — Ongoing (additive, automatic).</b><br>Once Setup Complete is true, the sync only adds new Sage accounts. Nothing is ever deleted or modified.</p><p>System-required accounts (Stock Adjustment, Round Off, Cost of Goods Sold, etc.) are hidden from the cleanup table — they’re never offered for deletion. If Sage has a same-named equivalent it replaces the ERPNext default automatically.</p></div>"
+  },
+  {
+   "description": "Cleanup decisions per Company. Each row = one existing ERPNext account, and your choice to Keep or Ignore on the Setup pass. System-required accounts are excluded.",
+   "fieldname": "account_cleanup_choices",
+   "fieldtype": "Table",
+   "label": "Account Cleanup Choices",
+   "options": "Sage Account Cleanup Choice"
   }
  ],
  "grid_page_length": 50,
