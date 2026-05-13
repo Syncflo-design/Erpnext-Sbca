@@ -44,6 +44,44 @@ from erpnext_sbca.API.helper_function import is_sync_enabled, safe_strip, chunks
 
 
 # ---------------------------------------------------------------------------
+# Default-group resolvers - pick a leaf (non-group) row at runtime so we
+# never try to assign a Customer to a Customer Group / Territory that is
+# itself a group-tree node (ERPNext rejects with "Cannot select a Group
+# type ...").
+# ---------------------------------------------------------------------------
+
+def _default_customer_group():
+    """First enabled leaf Customer Group on this site.
+
+    ERPNext ships defaults like 'Commercial', 'Individual' etc. as leaves
+    under the 'All Customer Groups' root. Picking the first one keeps the
+    pull adaptive - if the site renames its leaves we still resolve a
+    valid value. Falls back to 'Commercial' if nothing else is available.
+    """
+    return frappe.db.get_value(
+        "Customer Group",
+        {"is_group": 0, "disabled": 0},
+        "name",
+        order_by="creation asc",
+    ) or "Commercial"
+
+
+def _default_territory():
+    """First enabled leaf Territory on this site.
+
+    Same defensive pattern as _default_customer_group(). Falls back to
+    the ERPNext-standard 'Rest Of The World' if no leaves exist.
+    """
+    return frappe.db.get_value(
+        "Territory",
+        {"is_group": 0, "disabled": 0},
+        "name",
+        order_by="creation asc",
+    ) or "Rest Of The World"
+
+
+
+# ---------------------------------------------------------------------------
 # Custom field plumbing
 # ---------------------------------------------------------------------------
 
@@ -241,8 +279,8 @@ def _upsert_customer(sage_id, cust_data, created, updated, skipped, sales_team_s
     resolved = {
         "customer_name": cust_name,
         "customer_type": "Company",  # Sage has no native customer_type
-        "customer_group": "All Customer Groups",
-        "territory": "All Territories",
+        "customer_group": _default_customer_group(),
+        "territory": _default_territory(),
         "email_id": safe_strip(cust_data.get("email_id")) or "",
         "mobile_no": safe_strip(cust_data.get("mobile_no")) or "",
         "language": safe_strip(cust_data.get("language")) or "en",
