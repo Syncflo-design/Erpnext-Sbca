@@ -3,6 +3,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 from frappe.utils import now_datetime
+
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import chunks, is_sync_enabled, strip_if_str
 
@@ -31,6 +32,44 @@ SYSTEM_REQUIRED_ACCOUNTS = {
     "Accounts Receivable",
     "Accounts Payable",
 }
+
+
+def _ensure_sage_account_id_field():
+    """Idempotently add `custom_sage_account_id` to Account.
+
+    Populated by `get_accounts_from_sage` from the Pharoh response's
+    `sageacct_idx` field (Sage's long-int Account ID). Read by the Journal Entry push (and any
+    future push that needs to reference an account by its Sage ID).
+
+    Same pattern as the other ensure-helpers across the app.
+    """
+    if frappe.db.exists(
+        "Custom Field",
+        {"dt": "Account", "fieldname": "custom_sage_account_id"},
+    ):
+        return
+    try:
+        frappe.get_doc(
+            {
+                "doctype": "Custom Field",
+                "dt": "Account",
+                "fieldname": "custom_sage_account_id",
+                "label": "Sage Account ID",
+                "fieldtype": "Data",
+                "read_only": 1,
+                "description": (
+                    "Set by the Sage Account sync from Sage's `id` field. "
+                    "Used by the Journal Entry push to identify each row's "
+                    "target account on the Sage side."
+                ),
+            }
+        ).insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception as e:
+        frappe.log_error(
+            title="Sage Sync: could not create custom_sage_account_id field",
+            message=str(e),
+        )
 
 
 def _ensure_sage_managed_field():
@@ -134,6 +173,7 @@ def get_accounts_from_sage():
         return
 
     _ensure_sage_managed_field()
+    _ensure_sage_account_id_field()
 
     company_integrations = frappe.get_all(
         "Company Sage Integration", fields=["name", "company"]
@@ -219,11 +259,36 @@ def get_accounts_from_sage():
                             skipped += 1
                             continue
 
-                        # Already exists — strict additive means leave alone.
-                        if frappe.db.exists(
+                        # Sage ID for this account row — Pharoh response
+                        # carries it as `sageacct_idx` (Sage's long-int
+                        # account ID). Stored on every account as a string
+                        # so the Journal Entry push can resolve
+                        # account -> sage_id at runtime.
+                        sage_account_id = acc_data.get("sageacct_idx")
+                        if sage_account_id is not None:
+                            sage_account_id = str(sage_account_id)
+
+                        # Already exists — strict additive means leave alone
+                        # EXCEPT we backfill custom_sage_account_id if it
+                        # was previously missing. Two-line update; no
+                        # accounts ever get deleted or otherwise modified.
+                        existing_name = frappe.db.get_value(
                             "Account",
                             {"account_name": acc_name, "company": company_name},
-                        ):
+                            "name",
+                        )
+                        if existing_name:
+                            if sage_account_id:
+                                existing_sage_id = frappe.db.get_value(
+                                    "Account", existing_name, "custom_sage_account_id"
+                                )
+                                if not existing_sage_id:
+                                    frappe.db.set_value(
+                                        "Account",
+                                        existing_name,
+                                        "custom_sage_account_id",
+                                        sage_account_id,
+                                    )
                             skipped += 1
                             continue
 
@@ -245,6 +310,7 @@ def get_accounts_from_sage():
                                 "root_type": root_type,
                                 "is_group": 0,
                                 "custom_sage_managed": 1,
+                                "custom_sage_account_id": sage_account_id or "",
                             }
                         )
                         acc_doc.insert(ignore_permissions=True)
@@ -336,7 +402,7 @@ def get_account_setup_status(company):
         if acc.custom_sage_managed:
             continue
         if acc.account_name in SYSTEM_REQUIRED_ACCOUNTS:
-            # Will be kept (only replaced if Sage has same name — but that's
+            # Will be kept (only replaced if Sage has same name - but that's
             # a benign rename rather than a "deletion" the user needs to see).
             continue
         if frappe.db.exists("GL Entry", {"account": acc.name}):
@@ -416,7 +482,7 @@ def apply_account_cleanup(company):
 
 
 # ---------------------------------------------------------------------------
-# Account opening balances — on-demand pull
+# Account opening balances - on-demand pull
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
@@ -424,7 +490,7 @@ def get_account_opening_balances_from_sage():
     """Pull Sage's account opening balances for every Company Sage Integration.
 
     Whitelisted so the 'Pull Opening Balances' button on Erpnext Sbca
-    Settings can trigger it. Like the tax pull, this is button-only —
+    Settings can trigger it. Like the tax pull, this is button-only -
     opening balances rarely change.
 
     For each Company Sage Integration row:
@@ -479,13 +545,13 @@ def _pull_opening_balances_for_company(base_url, integration_row_name):
 
     if not company_name:
         summary["errors"].append(
-            f"Integration row {integration_row_name} has no Company set — skipped."
+            f"Integration row {integration_row_name} has no Company set - skipped."
         )
         return summary
 
     apikey = integration.get_password("api_key")
     if not apikey:
-        summary["errors"].append("Missing API key — skipped.")
+        summary["errors"].append("Missing API key - skipped.")
         return summary
 
     payload = {
@@ -557,7 +623,7 @@ def _pull_opening_balances_for_company(base_url, integration_row_name):
                 message=str(e),
             )
 
-    # Stale-record sweep — disable any opening balance for this Company
+    # Stale-record sweep - disable any opening balance for this Company
     # whose account didn't come back this pull.
     existing = frappe.db.get_all(
         "Sage Account Opening Balance",
@@ -685,4 +751,3 @@ def _company_opening_balance_status(company_name):
         "last_seen_at": last_seen,
         "total_value": total_value,
     }
-    return {"queued_for": company}

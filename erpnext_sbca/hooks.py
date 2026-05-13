@@ -158,6 +158,9 @@ doc_events = {
     "Item": {
 		"after_insert": ["erpnext_sbca.API.items.post_item"]
 	},
+    "Journal Entry": {
+		"on_submit": "erpnext_sbca.API.journal_entry.post_journal_entry",
+	},
 
 }
 
