@@ -410,6 +410,9 @@ def apply_account_cleanup(company):
         1,
     )
     frappe.db.commit()
+    # Return a truthy payload so the Client Script's `if (r.message)` branch
+    # fires (shows the green toast, hides the dialog, reloads the form).
+    return {"queued": True, "company": company, "integration": integration_name}
 
 
 # ---------------------------------------------------------------------------
