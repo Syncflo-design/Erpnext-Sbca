@@ -60,7 +60,7 @@ def _default_customer_group():
     """
     return frappe.db.get_value(
         "Customer Group",
-        {"is_group": 0, "disabled": 0},
+        {"is_group": 0},
         "name",
         order_by="creation asc",
     ) or "Commercial"
@@ -74,7 +74,7 @@ def _default_territory():
     """
     return frappe.db.get_value(
         "Territory",
-        {"is_group": 0, "disabled": 0},
+        {"is_group": 0},
         "name",
         order_by="creation asc",
     ) or "Rest Of The World"
@@ -284,7 +284,6 @@ def _upsert_customer(sage_id, cust_data, created, updated, skipped, sales_team_s
         "email_id": safe_strip(cust_data.get("email_id")) or "",
         "mobile_no": safe_strip(cust_data.get("mobile_no")) or "",
         "language": safe_strip(cust_data.get("language")) or "en",
-        "disabled": 1 if cust_data.get("disabled") else 0,
         "default_commission_rate": cust_data.get("default_commission_rate") or 0,
         "so_required": 1 if cust_data.get("so_required") else 0,
         "dn_required": 1 if cust_data.get("dn_required") else 0,
