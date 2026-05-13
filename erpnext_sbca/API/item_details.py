@@ -5,6 +5,49 @@ from frappe.integrations.utils import (
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
+
+# ---------------------------------------------------------------------------
+# Custom field plumbing — Sage Price List ID lives on Price List so the
+# customer pull (and any future caller) can resolve a Sage `id` to the
+# corresponding ERPNext Price List name. Populated by get_price_list_from_sage.
+# ---------------------------------------------------------------------------
+
+def _ensure_sage_price_list_id_field():
+    """Idempotently add `custom_sage_price_list_id` to Price List.
+
+    Same pattern as account.py's `_ensure_sage_managed_field()`. Safe to
+    call on every sync tick — exits immediately if the field exists.
+    """
+    if frappe.db.exists(
+        "Custom Field",
+        {"dt": "Price List", "fieldname": "custom_sage_price_list_id"},
+    ):
+        return
+    try:
+        frappe.get_doc(
+            {
+                "doctype": "Custom Field",
+                "dt": "Price List",
+                "fieldname": "custom_sage_price_list_id",
+                "label": "Sage Price List ID",
+                "fieldtype": "Data",
+                "read_only": 1,
+                "description": (
+                    "Set by the Sage Price List sync. Lets the customer "
+                    "pull and the additional-prices pull resolve Sage's "
+                    "internal pricelistID to the matching ERPNext Price "
+                    "List record."
+                ),
+            }
+        ).insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception as e:
+        frappe.log_error(
+            title="Sage Sync: could not create custom_sage_price_list_id field",
+            message=str(e),
+        )
+
+
 def get_item_inventory_qty_on_hand_from_sage():
     if not is_sync_enabled("sync_stock_on_hand"):
         return
@@ -82,6 +125,11 @@ def get_item_inventory_qty_on_hand_from_sage():
 def get_addition_prices_from_sage():
     if not is_sync_enabled("sync_additional_prices"):
         return
+    # The dynamic pricelist_ids query below filters on
+    # custom_sage_price_list_id. Make sure the field exists on a fresh
+    # site even if the user disabled sync_price_lists — otherwise the
+    # filter would crash with an unknown-column error.
+    _ensure_sage_price_list_id_field()
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -108,7 +156,24 @@ def get_addition_prices_from_sage():
         skipped = []
         errors = []
 
-        pricelist_ids = ["3796", "3795"]
+        # Drive the list of Sage pricelistIDs from the Price List records
+        # we've pulled (each Price List carries its Sage ID in
+        # custom_sage_price_list_id). Falls back to the historical
+        # hardcoded pair on a fresh install where get_price_list_from_sage
+        # hasn't run yet — that fallback evaporates after the first
+        # successful price-list pull.
+        pricelist_ids = [
+            pl.custom_sage_price_list_id
+            for pl in frappe.get_all(
+                "Price List",
+                filters={"custom_sage_price_list_id": ["is", "set"]},
+                fields=["custom_sage_price_list_id"],
+            )
+            if pl.custom_sage_price_list_id
+        ]
+        if not pricelist_ids:
+            pricelist_ids = ["3796", "3795"]
+
         login_payload = {
             "loginName": loginName,
             "loginPwd": loginPwd,
@@ -183,6 +248,7 @@ def get_addition_prices_from_sage():
 def get_price_list_from_sage():
     if not is_sync_enabled("sync_price_lists"):
         return
+    _ensure_sage_price_list_id_field()
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -227,6 +293,10 @@ def get_price_list_from_sage():
             pl_desc = safe_strip(pl.get("description"))
             pl_default = as_int(pl.get("isDefault"))
             pl_enabled = as_int(pl.get("enabled"))
+            # Sage's `id` is the pricelistID used by the additional-prices
+            # endpoint AND referenced by Customer.default_price_list_id.
+            # Stored verbatim as a string so it round-trips cleanly.
+            pl_sage_id = str(pl.get("id")) if pl.get("id") is not None else ""
 
             if pl_name in existing_price_lists:
                 try:
@@ -234,6 +304,8 @@ def get_price_list_from_sage():
                     doc.custom_description = pl_desc
                     doc.custom_is_default = pl_default
                     doc.enabled = pl_enabled
+                    if pl_sage_id:
+                        doc.custom_sage_price_list_id = pl_sage_id
                     doc.save(ignore_permissions=True)
                     updated.append(pl_name)
                 except Exception as e:
@@ -250,7 +322,8 @@ def get_price_list_from_sage():
                     "enabled": pl_enabled,
                     "selling": 1,
                     "buying": 1,
-                    "currency": "ZAR"
+                    "currency": "ZAR",
+                    "custom_sage_price_list_id": pl_sage_id,
                 })
                 new_doc.insert(ignore_permissions=True)
                 created.append(pl_name)

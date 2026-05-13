@@ -169,11 +169,19 @@ scheduler_events = {
 		"erpnext_sbca.API.sales_order.get_sales_order_from_sage",
         "erpnext_sbca.API.purchase_order.get_purchase_order_from_sage",
         "erpnext_sbca.API.supplier.get_supplier_from_sage",
+        # Sales Persons must run before Customers — customer.sales_team
+        # rows reference Sales Person records by name.
+        "erpnext_sbca.API.sales_person.get_sales_persons_from_sage",
+        # Price Lists must run before Customers (Customer.default_price_list
+        # is resolved via custom_sage_price_list_id) AND before
+        # get_addition_prices_from_sage (it iterates Sage pricelistIDs
+        # from the Price List records).
+        "erpnext_sbca.API.item_details.get_price_list_from_sage",
+        "erpnext_sbca.API.customer.get_customers_from_sage",
         "erpnext_sbca.API.account.get_accounts_from_sage",
         "erpnext_sbca.API.item_details.get_item_inventory_qty_on_hand_from_sage",
         "erpnext_sbca.API.item_details.update_item_job",
         "erpnext_sbca.API.item_details.get_addition_prices_from_sage",
-        "erpnext_sbca.API.item_details.get_price_list_from_sage",
         "erpnext_sbca.API.item_details.update_prices",
         "erpnext_sbca.API.item_details.get_categories_from_sage",
         "erpnext_sbca.API.item_details.get_inventory_from_sage"

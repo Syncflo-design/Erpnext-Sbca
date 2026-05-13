@@ -17,6 +17,8 @@
   "pull_scheduled_col_break",
   "sync_accounts",
   "sync_suppliers",
+  "sync_customers",
+  "sync_sales_persons",
   "sync_sales_orders",
   "sync_purchase_orders",
   "push_scheduled_section",
@@ -120,6 +122,20 @@
    "fieldname": "sync_suppliers",
    "fieldtype": "Check",
    "label": "Pull Suppliers"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_customers",
+   "fieldtype": "Check",
+   "label": "Pull Customers"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled",
+   "fieldname": "sync_sales_persons",
+   "fieldtype": "Check",
+   "label": "Pull Sales Persons"
   },
   {
    "default": "1",

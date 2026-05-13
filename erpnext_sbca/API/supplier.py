@@ -48,6 +48,12 @@ def get_supplier_from_sage():
                         continue
 
                     try:
+                        # The `name` field on the Sage payload is the Sage
+                        # Supplier ID — purchase_invoice.py reads it via
+                        # custom_sage_supplier_id to identify the supplier
+                        # on the Sage side. Write it on every upsert.
+                        sage_supplier_id = safe_strip(sup_data.get("name")) or ""
+
                         supplier_filter = {"supplier_name": sup_name}
 
                         if frappe.db.exists("Supplier", supplier_filter):
@@ -63,6 +69,8 @@ def get_supplier_from_sage():
                             sup_doc.website = safe_strip(sup_data.get("website")) or ""
                             # sup_doc.credit_limit = sup_data.get("creditLimit", 0) or 0
                             sup_doc.supplier_primary_address = None  # reset so we can re-link if address exists
+                            if sage_supplier_id:
+                                sup_doc.custom_sage_supplier_id = sage_supplier_id
                             sup_doc.save(ignore_permissions=True)
                             updated_suppliers.append(sup_name)
                         else:
@@ -80,7 +88,8 @@ def get_supplier_from_sage():
                                 "website": safe_strip(sup_data.get("website")) or "",
                                 # "credit_limit": sup_data.get("creditLimit", 0) or 0,
                                 # "company": sage.company,
-                                "naming_series": "SUP-.YYYY.-"
+                                "naming_series": "SUP-.YYYY.-",
+                                "custom_sage_supplier_id": sage_supplier_id,
                             })
                             sup_doc.insert(ignore_permissions=True)
                             created_suppliers.append(sup_name)
