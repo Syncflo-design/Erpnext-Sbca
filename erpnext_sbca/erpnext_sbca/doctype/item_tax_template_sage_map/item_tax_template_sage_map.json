@@ -1,0 +1,55 @@
+{
+ "actions": [],
+ "creation": "2026-05-13 00:00:00.000000",
+ "description": "Child rows on Item Tax Template that pair an ERPNext tax template with Sage Tax records per Company.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "sales_sage_tax",
+  "purchase_sage_tax"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "description": "ERPNext Company / Sage tenant this mapping row applies to."
+  },
+  {
+   "fieldname": "sales_sage_tax",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Sage Tax",
+   "options": "Sage Tax",
+   "description": "The Sage Tax record used on Sales Invoice / POS Invoice line pushes for items tagged with this Item Tax Template, when pushing to this Company's Sage tenant."
+  },
+  {
+   "fieldname": "purchase_sage_tax",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Purchase Sage Tax",
+   "options": "Sage Tax",
+   "description": "The Sage Tax record used on Purchase Invoice line pushes for items tagged with this Item Tax Template, when pushing to this Company's Sage tenant."
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Erpnext Sbca",
+ "name": "Item Tax Template Sage Map",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

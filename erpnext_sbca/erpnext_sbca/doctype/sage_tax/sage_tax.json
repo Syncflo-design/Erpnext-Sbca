@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:{company}-{sage_idx}",
+ "creation": "2026-05-13 00:00:00.000000",
+ "description": "Per-Company cache of Sage's tax catalogue. Populated by the Sage Tax pull. Used by the push paths to resolve the correct sage_idx and rate per Company.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "sage_idx",
+  "description",
+  "rate",
+  "template_label",
+  "column_break_status",
+  "disabled",
+  "last_seen_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "description": "Which ERPNext Company (= Sage tenant) this tax record was pulled from."
+  },
+  {
+   "fieldname": "sage_idx",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sage Tax ID",
+   "reqd": 1,
+   "description": "Sage's internal tax record ID. Sent as taxTypeId on every transaction line pushed to this Sage tenant."
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description",
+   "description": "Sage's own description of the tax record (e.g. 'VAT @ 0.15%'). Stored verbatim."
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rate",
+   "precision": "6",
+   "description": "Decimal fraction as Sage returns it. 0.15 represents 15% VAT. Used directly as the tax fraction in price-inclusive math (incl = excl * (1 + rate)) and as taxPercentage on Sage push payloads."
+  },
+  {
+   "fieldname": "template_label",
+   "fieldtype": "Data",
+   "label": "Sage Template Label",
+   "description": "The Sage 'Sales Taxes and Charges Template' name this record belongs to (e.g. 'Standard Rate (Capital Goods)'). Display-only, no logic depends on it."
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disabled",
+   "description": "Set to 1 automatically when the most recent Sage pull no longer returned this record. Existing Item Tax Template mappings pointing here still resolve, but the resolver logs a warning so the misalignment is visible."
+  },
+  {
+   "fieldname": "last_seen_at",
+   "fieldtype": "Datetime",
+   "label": "Last Seen At",
+   "description": "Timestamp of the most recent Sage pull that returned this record. Cleared if the record stops being returned."
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Erpnext Sbca",
+ "name": "Sage Tax",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "company",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "description",
+ "track_changes": 1
+}

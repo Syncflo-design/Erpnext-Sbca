@@ -4,6 +4,7 @@ from frappe.integrations.utils import (
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.tax import resolve_sage_tax
 
 def post_taxinvoice(doc, method):
     """Wrapper: enqueue the push so we don't block the Sales Invoice submit transaction."""
@@ -64,43 +65,40 @@ def _post_taxinvoice_worker(doc_name):
                 except:
                     frappe.throw("Sage Customer ID must be numeric.")
             
-                # 4. Get Tax Rate
-                tax_rate = 0.0
-                if doc.taxes:
-                    for tax_row in doc.taxes:
-                        if tax_row.charge_type == "On Net Total":
-                            tax_rate = float(tax_row.rate or 0)
-                            break
-            
-                # 5. Build Lines
+                # 4. Build Lines
+                # Per-line tax IDs and rates come from the Item Tax Template
+                # -> Sage Tax Mappings, resolved per active company. Sage's
+                # rate is decimal-fraction (0.15 = 15%) and is used directly.
                 lines = []
-            
+
                 if not doc.items:
                     frappe.throw("No items found in Sales Invoice.")
-            
+
                 for item in doc.items:
                     item_doc = frappe.get_doc("Item", item.item_code)
                     selection_raw = item_doc.get("custom_sage_selection_id")
-            
+
                     if not selection_raw:
                         frappe.throw(
                             f"Sage Selection ID missing for item: {item.item_code}. "
                             f"Please sync this item to Sage first."
                         )
-            
+
                     try:
                         selection_id = int(float(str(selection_raw).strip()))
                     except:
                         frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
-            
-                    tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
-            
+
+                    sales_sage_tax = resolve_sage_tax(item_doc, company.company, "sales")
+                    tax_type_id = int(sales_sage_tax.sage_idx)
+                    rate = float(sales_sage_tax.rate)
+
                     item_exclusive = float(item.net_amount or item.amount or 0)
                     item_rate_excl = float(item.net_rate or item.rate or 0)
                     item_rate_incl = float(item.rate or 0)
-                    item_tax = round(item_exclusive * (tax_rate / 100), 2)
+                    item_tax = round(item_exclusive * rate, 2)
                     item_total = round(item_exclusive + item_tax, 2)
-            
+
                     lines.append({
                         "selectionId": selection_id,
                         "lineType": 0,
@@ -116,7 +114,7 @@ def _post_taxinvoice_worker(doc_name):
                         "discountPercentage": float(item.discount_percentage or 0),
                         "tax": item_tax,
                         "total": item_total,
-                        "taxPercentage": round(tax_rate / 100, 4),
+                        "taxPercentage": round(rate, 4),
                         "taxTypeId": tax_type_id
                     })
             
@@ -271,45 +269,41 @@ def _post_taxinvoice_return_worker(doc_name):
                 except:
                     frappe.throw("Sage Customer ID must be numeric.")
             
-                # 6. Get Tax Rate
-                tax_rate = 0.0
-                if doc.taxes:
-                    for tax_row in doc.taxes:
-                        if tax_row.charge_type == "On Net Total":
-                            tax_rate = float(tax_row.rate or 0)
-                            break
-            
-                # 7. Build Lines (use abs() for all values since Credit Note has negatives)
+                # 6. Build Lines (use abs() for all values since Credit Note has negatives)
+                # Per-line tax IDs and rates come from the Item Tax Template
+                # -> Sage Tax Mappings, resolved per active company.
                 lines = []
-            
+
                 if not doc.items:
                     frappe.throw("No items found in Credit Note.")
-            
+
                 for item in doc.items:
-            
+
                     item_doc = frappe.get_doc("Item", item.item_code)
                     selection_raw = item_doc.get("custom_sage_selection_id")
-            
+
                     if not selection_raw:
                         frappe.throw(
                             f"Sage Selection ID missing for item: {item.item_code}. "
                             f"Please sync inventory first."
                         )
-            
+
                     try:
                         selection_id = int(float(str(selection_raw).strip()))
                     except:
                         frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
-            
-                    tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
-            
+
+                    sales_sage_tax = resolve_sage_tax(item_doc, company.company, "sales")
+                    tax_type_id = int(sales_sage_tax.sage_idx)
+                    rate = float(sales_sage_tax.rate)
+
                     item_exclusive = abs(float(item.net_amount or item.amount or 0))
                     item_rate_excl = abs(float(item.net_rate or item.rate or 0))
                     item_rate_incl = abs(float(item.rate or 0))
                     item_qty = abs(float(item.qty or 0))
-                    item_tax = round(item_exclusive * (tax_rate / 100), 2)
+                    item_tax = round(item_exclusive * rate, 2)
                     item_total = round(item_exclusive + item_tax, 2)
-            
+
                     lines.append({
                         "selectionId": selection_id,
                         "id": 0,
@@ -326,7 +320,7 @@ def _post_taxinvoice_return_worker(doc_name):
                         "discountPercentage": abs(float(item.discount_percentage or 0)),
                         "tax": item_tax,
                         "total": item_total,
-                        "taxPercentage": round(tax_rate / 100, 4),
+                        "taxPercentage": round(rate, 4),
                         "taxTypeId": tax_type_id
                     })
             

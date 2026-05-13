@@ -6,17 +6,25 @@ from frappe.integrations.utils import (
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.tax import resolve_sage_tax
 
 
 def convert_timestamp(ts):
     return frappe.utils.get_datetime(ts).isoformat()
 
-def group_items(items, doc):
+def group_items(items, doc, company_name):
+    """Group POS line items by Item.custom_category for the Sage push.
+
+    Resolves the Sage Tax record per item against `company_name` so the
+    correct sage_idx and rate land on each line. Must be called inside
+    the per-Company-Sage-Integration loop so the resolution sees the
+    active company.
+    """
     grouped = {}
     if items:
         for item in items:
             item_doc = frappe.get_doc("Item", item.item_code)
-            selection_raw = item_doc.get("custom_sage_selection_id") 
+            selection_raw = item_doc.get("custom_sage_selection_id")
             if not selection_raw:
                 frappe.throw(
 
@@ -31,17 +39,17 @@ def group_items(items, doc):
                 frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
             if not item_doc.get('custom_category'):
                 frappe.throw(f"Set Cartegory for {item.item_name}")
-            company = item_doc.get('custom_category')
-            if company not in grouped:
-                grouped[company] = []
-            tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
-            item_tax = 0
-            tax_details = doc.item_wise_tax_details
-            if tax_details != []:
-                for tax in tax_details:
-                    if item.name == tax.get("item_row"):
-                        item_tax = tax.get("amount")
-            grouped[company].append({
+            grouping_key = item_doc.get('custom_category')
+            if grouping_key not in grouped:
+                grouped[grouping_key] = []
+
+            sales_sage_tax = resolve_sage_tax(item_doc, company_name, "sales")
+            tax_type_id = int(sales_sage_tax.sage_idx)
+            rate = float(sales_sage_tax.rate)
+            line_exclusive = float(item.net_amount or 0)
+            item_tax = round(line_exclusive * rate, 2)
+
+            grouped[grouping_key].append({
             "selectionId": selection_id,
             "id": 0,
             "lineType": 0,
@@ -56,9 +64,9 @@ def group_items(items, doc):
             "discount": item.discount_amount or 0,
             "tax": item_tax,
             "total": item.base_amount,
-            "taxPercentage": 0,
+            "taxPercentage": round(rate, 4),
             "discountPercentage": 0,
-            "taxTypeId": tax_type_id if item_tax > 0 else 0,
+            "taxTypeId": tax_type_id,
             "analysisCategoryId1": 0,
             "analysisCategoryId2": 0,
             "analysisCategoryId3": 0
@@ -82,13 +90,15 @@ def _post_pos_invoice_worker(doc_name):
     doc = frappe.get_doc("POS Invoice", doc_name)
     try:
         if doc.is_return != 1 and doc.is_created_using_pos == 1:
-            items = group_items(doc.items, doc)
-            for key in items.keys():
-                if frappe.db.exists("Company Sage Integration", {"company":key}):
-                    settings = frappe.get_doc("Erpnext Sbca Settings")
-                    company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
-                    for company in company_settings:
-                        company = frappe.get_doc("Company Sage Integration", company.name)
+            settings = frappe.get_doc("Erpnext Sbca Settings")
+            company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
+            for company in company_settings:
+                company = frappe.get_doc("Company Sage Integration", company.name)
+                # Group inside the company loop so per-line tax resolution
+                # sees the active company's mapping.
+                items = group_items(doc.items, doc, company.company)
+                for key in items.keys():
+                    if frappe.db.exists("Company Sage Integration", {"company":key}):
                         apikey = company.get_password("api_key")
                         loginName = company.username
                         loginPwd = company.get_password("password")

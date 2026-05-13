@@ -2,6 +2,7 @@ import frappe
 from frappe.integrations.utils import (
 	make_post_request,
 )
+from frappe.utils import now_datetime
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import chunks, is_sync_enabled, strip_if_str
 
@@ -409,4 +410,276 @@ def apply_account_cleanup(company):
         1,
     )
     frappe.db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Account opening balances — on-demand pull
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_account_opening_balances_from_sage():
+    """Pull Sage's account opening balances for every Company Sage Integration.
+
+    Whitelisted so the 'Pull Opening Balances' button on Erpnext Sbca
+    Settings can trigger it. Like the tax pull, this is button-only —
+    opening balances rarely change.
+
+    For each Company Sage Integration row:
+      - POSTs to /api/AccountsSync/get-accountbalances-for-erpnext with
+        the standard credentials envelope.
+      - Upserts one Sage Account Opening Balance row per account
+        returned, keyed on (company, account_name).
+      - Rows that stop being returned get disabled = 1 (kept as
+        historical records).
+
+    The Sage response has `company: ""` blank because the call is
+    already scoped to one tenant by the apikey; we use the integration
+    row's `company` field as the canonical Company.
+
+    Returns a list of per-Company summaries suitable for a toast.
+    """
+    settings = frappe.get_doc("Erpnext Sbca Settings")
+    base_url = (settings.url or "").rstrip("/")
+    if not base_url:
+        frappe.throw("Erpnext Sbca Settings: URL is not set.")
+
+    integration_rows = frappe.db.get_all(
+        "Company Sage Integration",
+        filters={"parent": settings.name},
+        fields=["name"],
+    )
+    if not integration_rows:
+        return []
+
+    summaries = []
+    for row_ref in integration_rows:
+        summary = _pull_opening_balances_for_company(base_url, row_ref.name)
+        summaries.append(summary)
+    return summaries
+
+
+def _pull_opening_balances_for_company(base_url, integration_row_name):
+    """Pull opening balances for one Company Sage Integration row.
+
+    Returns a summary dict. All per-record errors caught so one bad
+    payload entry doesn't abort the whole pull.
+    """
+    integration = frappe.get_doc("Company Sage Integration", integration_row_name)
+    company_name = integration.company
+    summary = {
+        "company": company_name or f"<unlinked row {integration_row_name}>",
+        "created": 0,
+        "updated": 0,
+        "disabled": 0,
+        "errors": [],
+    }
+
+    if not company_name:
+        summary["errors"].append(
+            f"Integration row {integration_row_name} has no Company set — skipped."
+        )
+        return summary
+
+    apikey = integration.get_password("api_key")
+    if not apikey:
+        summary["errors"].append("Missing API key — skipped.")
+        return summary
+
+    payload = {
+        "loginName": integration.username,
+        "loginPwd": integration.get_password("password"),
+        "useOAuth": bool(integration.use_oauth),
+        "sessionToken": integration.get_password("session_id"),
+        "provider": integration.get_password("provider"),
+    }
+    endpoint_url = (
+        f"{base_url}/api/AccountsSync/get-accountbalances-for-erpnext?apikey={apikey}"
+    )
+
+    try:
+        response = make_post_request(
+            endpoint_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+    except Exception as e:
+        body = ""
+        try:
+            body = e.response.text
+        except Exception:
+            body = str(e)
+        summary["errors"].append(f"HTTP error from Sage: {body[:500]}")
+        frappe.log_error(
+            title=f"Sage Opening Balance Pull HTTP Error for {company_name}"[:140],
+            message=f"Error: {e}\nResponse body: {body}",
+        )
+        return summary
+
+    if not isinstance(response, list):
+        summary["errors"].append(
+            f"Unexpected response shape (expected JSON array, got "
+            f"{type(response).__name__})."
+        )
+        return summary
+
+    seen_accounts = set()
+    now = now_datetime()
+
+    for record in response:
+        if not isinstance(record, dict):
+            continue
+        account_name = (record.get("account") or "").strip()
+        if not account_name:
+            continue
+        opening_balance = _safe_float_opening(record.get("opening_balance"))
+
+        try:
+            _upsert_opening_balance(
+                company_name=company_name,
+                account_name=account_name,
+                opening_balance=opening_balance,
+                last_seen_at=now,
+                summary=summary,
+            )
+            seen_accounts.add(account_name)
+        except Exception as e:
+            summary["errors"].append(
+                f"Upsert failed for account={account_name}: {e}"
+            )
+            frappe.log_error(
+                title=(
+                    f"Sage Opening Balance Upsert Error "
+                    f"{company_name}/{account_name}"
+                )[:140],
+                message=str(e),
+            )
+
+    # Stale-record sweep — disable any opening balance for this Company
+    # whose account didn't come back this pull.
+    existing = frappe.db.get_all(
+        "Sage Account Opening Balance",
+        filters={"company": company_name, "disabled": 0},
+        fields=["name", "account_name"],
+    )
+    for row in existing:
+        if row.account_name not in seen_accounts:
+            frappe.db.set_value(
+                "Sage Account Opening Balance", row.name, "disabled", 1
+            )
+            summary["disabled"] += 1
+
+    frappe.db.commit()
+    return summary
+
+
+def _upsert_opening_balance(
+    company_name,
+    account_name,
+    opening_balance,
+    last_seen_at,
+    summary,
+):
+    """Insert-or-update one Sage Account Opening Balance row."""
+    existing_name = frappe.db.get_value(
+        "Sage Account Opening Balance",
+        {"company": company_name, "account_name": account_name},
+        "name",
+    )
+    if existing_name:
+        doc = frappe.get_doc("Sage Account Opening Balance", existing_name)
+        doc.opening_balance = opening_balance
+        doc.disabled = 0
+        doc.last_seen_at = last_seen_at
+        doc.save(ignore_permissions=True)
+        summary["updated"] += 1
+    else:
+        frappe.get_doc(
+            {
+                "doctype": "Sage Account Opening Balance",
+                "company": company_name,
+                "account_name": account_name,
+                "opening_balance": opening_balance,
+                "disabled": 0,
+                "last_seen_at": last_seen_at,
+            }
+        ).insert(ignore_permissions=True)
+        summary["created"] += 1
+
+
+def _safe_float_opening(value):
+    """Coerce a Sage opening-balance value to float. None / blank -> 0.0.
+
+    Sage returns plain numbers (sometimes negative for credit-balance
+    accounts). Passed through unchanged.
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+@frappe.whitelist()
+def get_opening_balance_status():
+    """Per-Company snapshot of Sage Account Opening Balance records.
+
+    Used by the Settings page Opening Balances tab to render the status
+    banner. Whitelisted so the client script can call it freely.
+
+    Returns one row per Company Sage Integration:
+        {
+          "company": <Company name>,
+          "active":   N,
+          "disabled": N,
+          "last_seen_at": <datetime or None>,
+          "total_value": <sum of opening_balance for active rows>,
+        }
+    """
+    integrations = frappe.db.get_all(
+        "Company Sage Integration",
+        fields=["company"],
+    )
+    out = []
+    seen = set()
+    for row in integrations:
+        company = row.company
+        if not company or company in seen:
+            continue
+        seen.add(company)
+        out.append(_company_opening_balance_status(company))
+    return out
+
+
+def _company_opening_balance_status(company_name):
+    active = frappe.db.count(
+        "Sage Account Opening Balance",
+        {"company": company_name, "disabled": 0},
+    )
+    disabled = frappe.db.count(
+        "Sage Account Opening Balance",
+        {"company": company_name, "disabled": 1},
+    )
+    last_row = frappe.db.get_all(
+        "Sage Account Opening Balance",
+        filters={"company": company_name},
+        fields=["last_seen_at"],
+        order_by="last_seen_at desc",
+        limit=1,
+    )
+    last_seen = last_row[0].last_seen_at if last_row else None
+    total_sum = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(opening_balance), 0)
+        FROM `tabSage Account Opening Balance`
+        WHERE company = %s AND disabled = 0
+        """,
+        (company_name,),
+    )
+    total_value = float(total_sum[0][0]) if total_sum else 0.0
+    return {
+        "company": company_name,
+        "active": active,
+        "disabled": disabled,
+        "last_seen_at": last_seen,
+        "total_value": total_value,
+    }
     return {"queued_for": company}

@@ -5,6 +5,7 @@ from frappe.integrations.utils import (
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.tax import resolve_sage_tax
 
 
 def convert_timestamp(ts):
@@ -54,7 +55,7 @@ def _post_purchase_invoice_worker(doc_name):
 
 
                 if not doc.items:
-                    frappe.throw("No items found in Sales Invoice.")
+                    frappe.throw("No items found in Purchase Invoice.")
                 lines = []
                 for item in doc.items:
                     item_doc = frappe.get_doc("Item", item.item_code)
@@ -67,7 +68,13 @@ def _post_purchase_invoice_worker(doc_name):
                             f"Please sync this item to Sage first."
 
                         )
-                    tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
+
+                    # Per-tenant purchase tax from the Item Tax Template ->
+                    # Sage Tax Mappings table.
+                    purchase_sage_tax = resolve_sage_tax(item_doc, company.company, "purchases")
+                    tax_type_id = int(purchase_sage_tax.sage_idx)
+                    rate = float(purchase_sage_tax.rate)
+
                     item_exclusive = float(item.base_amount or 0)
                     item_rate_excl = float(item.net_rate or 0)
                     item_rate_incl = float(item.rate or 0)
@@ -94,7 +101,7 @@ def _post_purchase_invoice_worker(doc_name):
                     "discount": float(item.discount_amount or 0),
                     "tax": item_tax,
                     "total": item_total,
-                    "taxPercentage": 0,
+                    "taxPercentage": round(rate, 4),
                     "discountPercentage": float(item.discount_percentage or 0),
                     "taxTypeId": tax_type_id,
                     "currencyId": 0,
@@ -317,11 +324,11 @@ def _post_purchase_invoice_return_worker(doc_name):
 
 
                 if not doc.items:
-                    frappe.throw("No items found in Sales Invoice.")
+                    frappe.throw("No items found in Purchase Invoice Return.")
                 lines = []
                 for item in doc.items:
                     item_doc = frappe.get_doc("Item", item.item_code)
-                    selection_raw = item_doc.get("custom_sage_selection_id") 
+                    selection_raw = item_doc.get("custom_sage_selection_id")
                     if not selection_raw:
                         frappe.throw(
 
@@ -334,8 +341,13 @@ def _post_purchase_invoice_return_worker(doc_name):
                         selection_id = int(float(str(selection_raw).strip()))
                     except:
                         frappe.throw(f"Sage Selection ID must be numeric for item: {item.item_code}")
-                    
-                    tax_type_id = int(item_doc.get("tax_typeid_sales") or item_doc.get("custom_sage_tax_type_id") or 0)
+
+                    # Per-tenant purchase tax from the Item Tax Template ->
+                    # Sage Tax Mappings table.
+                    purchase_sage_tax = resolve_sage_tax(item_doc, company.company, "purchases")
+                    tax_type_id = int(purchase_sage_tax.sage_idx)
+                    rate = float(purchase_sage_tax.rate)
+
                     item_exclusive = float(item.net_amount or item.amount or 0)
                     item_rate_excl = float(item.net_rate or item.rate or 0)
                     item_rate_incl = float(item.rate or 0)
@@ -357,7 +369,7 @@ def _post_purchase_invoice_return_worker(doc_name):
                     "unitPriceExclusive": item_rate_excl,
                     "unit": item.uom or "",
                     "unitPriceInclusive": item_rate_incl,
-                    "taxPercentage": 0,
+                    "taxPercentage": round(rate, 4),
                     "discountPercentage": float(item.discount_percentage or 0),
                     "exclusive": item_exclusive,
                     "discount": float(item.discount_amount or 0),

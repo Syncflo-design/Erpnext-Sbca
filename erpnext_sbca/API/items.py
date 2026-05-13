@@ -4,6 +4,7 @@ from frappe.integrations.utils import (
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.tax import build_price_pair, resolve_sage_tax
 
 def post_item(doc, method):
     """Wrapper: enqueue the push so we don't block the Item insert transaction."""
@@ -32,7 +33,14 @@ def _post_item_worker(doc_name):
                 loginPwd = company.get_password("password")
                 provider = company.get_password("provider")
                 session_token = company.get_password("session_id")
-                tax_id=company.get('tax_id')
+
+                # Per-tenant tax IDs come from the Item Tax Template ->
+                # Sage Tax Mappings table, resolved by company. Sales rate
+                # drives the price-inclusive math because the price stored
+                # on the Item is the selling price.
+                sales_sage_tax = resolve_sage_tax(doc, company.company, "sales")
+                purchase_sage_tax = resolve_sage_tax(doc, company.company, "purchases")
+                price_excl, price_incl = build_price_pair(doc, sales_sage_tax.rate)
 
                 # Sage endpoint
                 endpoint_url = f"{url}/api/InventorySync/post-new-item-to-sage?apikey={apikey}"
@@ -51,15 +59,15 @@ def _post_item_worker(doc_name):
                         "Code": doc.item_code,
                         "Description": doc.item_name or doc.description,
                         "Active": True if doc.disabled == 0 else False,
-                        "PriceExclusive": float(doc.standard_rate or 0),
-                        "PriceInclusive": float(doc.standard_rate or 0) * 1.15,  # adjust VAT if needed
+                        "PriceExclusive": price_excl,
+                        "PriceInclusive": price_incl,
                         # Always False: every item in Sage is created as a service /
                         # "Do Not Track Balance" item. ERPNext owns stock quantities;
                         # Sage only records the financial value of stock movements via
                         # invoice pushes routed through its per-item GL mapping.
                         "Physical": False,
-                        "TaxTypeIdSales": tax_id,
-                        "TaxTypeIdPurchases": tax_id,
+                        "TaxTypeIdSales": int(sales_sage_tax.sage_idx),
+                        "TaxTypeIdPurchases": int(purchase_sage_tax.sage_idx),
                         "Unit": doc.stock_uom or "Each",
                         "Created": frappe.utils.format_datetime(doc.creation, "yyyy-MM-dd'T'HH:mm:ss"),
                         "Modified": frappe.utils.format_datetime(doc.modified, "yyyy-MM-dd'T'HH:mm:ss"),

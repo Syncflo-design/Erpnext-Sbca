@@ -36,7 +36,11 @@
   "company_sage_integration",
   "accounts_tab",
   "active_company",
-  "accounts_intro"
+  "accounts_intro",
+  "taxes_tab",
+  "taxes_intro",
+  "opening_balances_tab",
+  "opening_balances_intro"
  ],
  "fields": [
   {
@@ -240,7 +244,27 @@
   {
    "fieldname": "accounts_intro",
    "fieldtype": "HTML",
-   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p><b>Phase 1 — Setup (one-time per Company, destructive).</b><br>Tick <b>Apply Account Cleanup on Next Sync</b> on the Company Sage Integration row in the Connection tab, then save. The next account-sync run deletes every leaf account on this Company that isn't system-required and isn't already a Sage account, imports all Sage accounts fresh, and flips <b>Setup Complete</b> to true.</p><p><b>Phase 2 — Ongoing (additive, automatic).</b><br>Once Setup Complete is true, the sync only adds new Sage accounts. Nothing is ever deleted or modified.</p><p>System-required accounts (Stock Adjustment, Round Off, Cost of Goods Sold, etc.) are protected — they're never deleted. If Sage has a same-named equivalent it replaces the ERPNext default automatically.</p><p><b>Opening balances</b> (separate trigger, runs after Setup is complete and Sage accounts are present) — coming next.</p></div>"
+   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p><b>Phase 1 — Setup (one-time per Company, destructive).</b><br>Tick <b>Apply Account Cleanup on Next Sync</b> on the Company Sage Integration row in the Connection tab, then save. The next account-sync run deletes every leaf account on this Company that isn't system-required and isn't already a Sage account, imports all Sage accounts fresh, and flips <b>Setup Complete</b> to true.</p><p><b>Phase 2 — Ongoing (additive, automatic).</b><br>Once Setup Complete is true, the sync only adds new Sage accounts. Nothing is ever deleted or modified.</p><p>System-required accounts (Stock Adjustment, Round Off, Cost of Goods Sold, etc.) are protected — they're never deleted. If Sage has a same-named equivalent it replaces the ERPNext default automatically.</p><p>See the <b>Opening Balances</b> tab to import Sage account opening balances once the account sync is complete.</p></div>"
+  },
+  {
+   "fieldname": "taxes_tab",
+   "fieldtype": "Tab Break",
+   "label": "Taxes"
+  },
+  {
+   "fieldname": "taxes_intro",
+   "fieldtype": "HTML",
+   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p>Loading tax catalogue status…</p></div>"
+  },
+  {
+   "fieldname": "opening_balances_tab",
+   "fieldtype": "Tab Break",
+   "label": "Opening Balances"
+  },
+  {
+   "fieldname": "opening_balances_intro",
+   "fieldtype": "HTML",
+   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p>Loading opening balance status…</p></div>"
   }
  ],
  "grid_page_length": 50,
