@@ -145,12 +145,14 @@ doc_events = {
 	},
     "Purchase Order": {
 		"after_submit": "erpnext_sbca.API.purchase_order.post_purchase_order",
+        "on_cancel": "erpnext_sbca.API.cancellation.cancel_purchase_order",
 	},
     "Purchase Invoice": {
 		"after_submit": ["erpnext_sbca.API.purchase_invoice.post_purchase_invoice","erpnext_sbca.API.purchase_invoice.post_purchase_invoice_return"]
 	},
     "Sales Order": {
 		"after_submit": "erpnext_sbca.API.sales_order.post_sales_order",
+        "on_cancel": "erpnext_sbca.API.cancellation.cancel_sales_order",
 	},
     "Sales Invoice": {
 		"after_submit": ["erpnext_sbca.API.sales_invoice.post_taxinvoice","erpnext_sbca.API.sales_invoice.post_taxinvoice_return"]
@@ -161,6 +163,12 @@ doc_events = {
     "Journal Entry": {
 		"on_submit": "erpnext_sbca.API.journal_entry.post_journal_entry",
 	},
+    "Stock Entry": {
+        "on_submit": "erpnext_sbca.API.stock_adjustment.post_stock_entry",
+    },
+    "Stock Reconciliation": {
+        "on_submit": "erpnext_sbca.API.stock_adjustment.post_stock_reconciliation",
+    },
 
 }
 
