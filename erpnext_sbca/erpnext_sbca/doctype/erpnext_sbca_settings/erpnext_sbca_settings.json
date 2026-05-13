@@ -36,8 +36,7 @@
   "company_sage_integration",
   "accounts_tab",
   "active_company",
-  "accounts_intro",
-  "account_cleanup_choices"
+  "accounts_intro"
  ],
  "fields": [
   {
@@ -241,14 +240,7 @@
   {
    "fieldname": "accounts_intro",
    "fieldtype": "HTML",
-   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p><b>Phase 1 — Setup (one-time per Company, destructive).</b><br>Populate the cleanup table below for the Active Company, mark each existing account <i>Keep</i> or <i>Ignore</i>, then tick <b>Apply Account Cleanup on Next Sync</b> on the matching Company Sage Integration row. The next sync deletes the Ignore rows (best-effort — accounts linked to transactions are kept), imports all Sage accounts, and flips <b>Setup Complete</b> to true.</p><p><b>Phase 2 — Ongoing (additive, automatic).</b><br>Once Setup Complete is true, the sync only adds new Sage accounts. Nothing is ever deleted or modified.</p><p>System-required accounts (Stock Adjustment, Round Off, Cost of Goods Sold, etc.) are hidden from the cleanup table — they’re never offered for deletion. If Sage has a same-named equivalent it replaces the ERPNext default automatically.</p></div>"
-  },
-  {
-   "description": "Cleanup decisions per Company. Each row = one existing ERPNext account, and your choice to Keep or Ignore on the Setup pass. System-required accounts are excluded.",
-   "fieldname": "account_cleanup_choices",
-   "fieldtype": "Table",
-   "label": "Account Cleanup Choices",
-   "options": "Sage Account Cleanup Choice"
+   "options": "<div style=\"color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;\"><p><b>Phase 1 — Setup (one-time per Company, destructive).</b><br>Tick <b>Apply Account Cleanup on Next Sync</b> on the Company Sage Integration row in the Connection tab, then save. The next account-sync run deletes every leaf account on this Company that isn't system-required and isn't already a Sage account, imports all Sage accounts fresh, and flips <b>Setup Complete</b> to true.</p><p><b>Phase 2 — Ongoing (additive, automatic).</b><br>Once Setup Complete is true, the sync only adds new Sage accounts. Nothing is ever deleted or modified.</p><p>System-required accounts (Stock Adjustment, Round Off, Cost of Goods Sold, etc.) are protected — they're never deleted. If Sage has a same-named equivalent it replaces the ERPNext default automatically.</p><p><b>Opening balances</b> (separate trigger, runs after Setup is complete and Sage accounts are present) — coming next.</p></div>"
   }
  ],
  "grid_page_length": 50,

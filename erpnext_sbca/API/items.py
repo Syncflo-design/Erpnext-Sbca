@@ -53,7 +53,11 @@ def _post_item_worker(doc_name):
                         "Active": True if doc.disabled == 0 else False,
                         "PriceExclusive": float(doc.standard_rate or 0),
                         "PriceInclusive": float(doc.standard_rate or 0) * 1.15,  # adjust VAT if needed
-                        "Physical": True if doc.is_stock_item else False,
+                        # Always False: every item in Sage is created as a service /
+                        # "Do Not Track Balance" item. ERPNext owns stock quantities;
+                        # Sage only records the financial value of stock movements via
+                        # invoice pushes routed through its per-item GL mapping.
+                        "Physical": False,
                         "TaxTypeIdSales": tax_id,
                         "TaxTypeIdPurchases": tax_id,
                         "Unit": doc.stock_uom or "Each",
