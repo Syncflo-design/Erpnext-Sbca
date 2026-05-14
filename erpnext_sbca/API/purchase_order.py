@@ -331,7 +331,7 @@ def get_purchase_order_from_sage():
             uom_cache = set()
             stock_uom_cache = set()
             item_cache = set()
-            group_cache = set(["Sage Imported Items"])  # Pre-add common group
+            group_cache = set()
 
             batch_size = 20
 

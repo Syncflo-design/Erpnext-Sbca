@@ -257,7 +257,7 @@ def get_sales_order_from_sage():
             uom_cache = set()
             stock_uom_cache = set()
             item_cache = set()
-            group_cache = set(["Sage Imported Items"])
+            group_cache = set()
             warehouse_cache = {}  # Cache for warehouses
 
             batch_size = 20
