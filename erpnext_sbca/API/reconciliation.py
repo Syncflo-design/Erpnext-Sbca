@@ -24,8 +24,13 @@ Pharoh endpoints (see Pharoh_Reconciliation_Endpoint_Prompt.txt):
   POST /api/ReconciliationSync/get-customer-balances
   POST /api/ReconciliationSync/get-supplier-balances
 
-Each returns ONLY the parties with movement in the period, every entry
-shaped { partyName, sageName, openingBalance, closingBalance }.
+Sage's CustomerTransactionListing / SupplierTransactionListing reports return
+a per-party object that already carries OpeningBalance + ClosingBalance, plus
+a nested Transactions[] detail array. Pharoh strips the Transactions detail
+(ERPNext does not need it) and hands back ONLY the per-party summary for the
+parties with movement in the period, shaped:
+  { sageId, name, openingBalance, closingBalance }   (+ balance dates / currency)
+ERPNext matches the party on sageId / name and uses closingBalance for the delta.
 
 PER-PARTY LOGIC
 ---------------
@@ -96,8 +101,8 @@ _PHAROH_PATHS = {
 }
 
 # Custom field carrying the Sage-side id on each party doctype. Stamped by
-# the customer / supplier sync (custom_sage_customer_id is "the Sage name
-# field"). Used as the primary match key against the Pharoh `sageName`.
+# the customer / supplier sync from Sage's customer/supplier id. Used as the
+# primary match key against the `sageId` Pharoh returns for each party.
 _SAGE_ID_FIELD = {
     "Customer": "custom_sage_customer_id",
     "Supplier": "custom_sage_supplier_id",
@@ -409,8 +414,8 @@ def _reconcile_party_type(
         except Exception as e:
             failed += 1
             frappe.db.rollback()
-            party_name = (
-                entry.get("partyName") or entry.get("sageName") or "<unknown>"
+            party_name = str(
+                entry.get("name") or entry.get("sageId") or "<unknown>"
             )
             matched = (
                 party_name
@@ -456,14 +461,16 @@ def _reconcile_one_party(
     zero delta). Raises on any error so the caller can roll back and record
     a Failed log row.
     """
-    party_name = (entry.get("partyName") or "").strip()
-    sage_name = (entry.get("sageName") or "").strip()
+    # Sage returns a numeric sageId and a display name per party. sageId may
+    # arrive as an int (e.g. 356693) -- coerce to a trimmed string for matching.
+    party_name = str(entry.get("name") or "").strip()
+    sage_id = str(entry.get("sageId") or "").strip()
 
-    party = _match_party(party_type, party_name, sage_name)
+    party = _match_party(party_type, party_name, sage_id)
     if not party:
         frappe.logger("sbca").info(
             f"Sage Reconciliation [{company} / {party_type}]: no ERPNext match "
-            f"for Sage party '{party_name or sage_name}' -- skipped."
+            f"for Sage party '{party_name or sage_id}' -- skipped."
         )
         return "skipped"
 
@@ -560,18 +567,22 @@ def _reconcile_one_party(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _match_party(party_type, party_name, sage_name):
+def _match_party(party_type, party_name, sage_id):
     """Resolve a Sage party to an ERPNext Customer/Supplier name.
 
-    The Sage-id match (custom_sage_customer_id / custom_sage_supplier_id) is
-    tried first because it is the stable key the customer/supplier sync
-    stamps; the plain document-name match is the fallback.
+    Sage's transaction listing identifies each party by a numeric `sage_id`
+    (Sage's customer/supplier id) and a display `party_name`. The customer /
+    supplier sync stamps that Sage id onto custom_sage_customer_id /
+    custom_sage_supplier_id, so it is the primary, stable match key. The
+    plain document-name match is the fallback for ERPNext records that
+    pre-date the Sage sync and so carry no Sage id yet.
     """
     sage_id_field = _SAGE_ID_FIELD[party_type]
-    if sage_name:
+
+    if sage_id:
         try:
             match = frappe.db.get_value(
-                party_type, {sage_id_field: sage_name}, "name"
+                party_type, {sage_id_field: sage_id}, "name"
             )
             if match:
                 return match
@@ -579,6 +590,7 @@ def _match_party(party_type, party_name, sage_name):
             # Field may not exist yet on a site that has never run the
             # customer/supplier sync -- fall through to the name match.
             pass
+
     if party_name and frappe.db.exists(party_type, party_name):
         return party_name
     return None
