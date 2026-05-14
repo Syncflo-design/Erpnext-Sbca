@@ -54,12 +54,13 @@ PER-PARTY LOGIC
 PREREQUISITES
 -------------
 - A Company Sage Integration row must exist for each company to reconcile.
-- A leaf account named exactly "Sage Payments Clearing" must exist on each
-  company (confirm the name with the accountant before the first run).
-- The company must have default_receivable_account / default_payable_account
-  set (ERPNext standard).
 - Pharoh's ReconciliationSync endpoints must be live. Until then leave the
   push_reconciliation_on_schedule toggle OFF in Settings.
+
+No manual chart-of-accounts prep is needed. The "Sage Payments Clearing"
+leaf account is auto-provisioned per company (see _ensure_clearing_account),
+and the party control accounts fall back to the company's first Receivable /
+Payable account if the company defaults are not set.
 
 ERROR HANDLING
 --------------
@@ -88,7 +89,8 @@ from erpnext_sbca.API.helper_function import is_sync_enabled
 
 # Exact account_name of the per-company clearing account. The reconciliation
 # journal's contra side always posts here; it nets to zero once Sage and
-# ERPNext agree. Confirm this name with the accountant before the first run.
+# ERPNext agree. Auto-provisioned per company by _ensure_clearing_account --
+# no manual setup needed.
 CLEARING_ACCOUNT_NAME = "Sage Payments Clearing"
 
 # Balances within half a cent are treated as already aligned -- no journal.
@@ -247,25 +249,11 @@ def _reconcile_company(integration_name, opening_date, closing_date):
         )
         return False
 
-    clearing_account = frappe.db.get_value(
-        "Account",
-        {
-            "company": company,
-            "account_name": CLEARING_ACCOUNT_NAME,
-            "is_group": 0,
-        },
-        "name",
-    )
+    # Auto-provisioned -- created on the company's Asset root if missing.
+    clearing_account = _ensure_clearing_account(company)
     if not clearing_account:
-        frappe.log_error(
-            title=f"Sage Reconciliation: no clearing account for '{company}'"[:140],
-            message=(
-                f"No leaf account named '{CLEARING_ACCOUNT_NAME}' found on "
-                f"company '{company}'. Create it (confirm the exact name with "
-                f"the accountant) before reconciliation can run for this "
-                f"company."
-            ),
-        )
+        # _ensure_clearing_account has already logged why (no Asset root group
+        # on the company, or the insert failed). Skip this company this run.
         return False
 
     # Standard credentials block -- identical shape to stock_adjustment.py.
@@ -318,23 +306,37 @@ def _reconcile_party_type(
     company has no default receivable/payable account). Per-party errors are
     logged and skipped -- they do not flip the return value.
     """
-    # Control account this party type posts against.
-    control_field = (
-        "default_receivable_account"
-        if party_type == "Customer"
-        else "default_payable_account"
-    )
+    # Control account this party type posts against. Prefer the Company
+    # default; if it is not set, fall back to the company's first Receivable /
+    # Payable leaf account so reconciliation still works without manual setup.
+    if party_type == "Customer":
+        control_field, account_type = "default_receivable_account", "Receivable"
+    else:
+        control_field, account_type = "default_payable_account", "Payable"
+
     party_account = frappe.get_cached_value("Company", company, control_field)
+    if not party_account:
+        party_account = frappe.db.get_value(
+            "Account",
+            {
+                "company": company,
+                "account_type": account_type,
+                "is_group": 0,
+                "disabled": 0,
+            },
+            "name",
+            order_by="creation asc",
+        )
     if not party_account:
         frappe.log_error(
             title=(
-                f"Sage Reconciliation: no control account for {party_type} "
-                f"on '{company}'"
+                f"Sage Reconciliation: no {account_type} account for "
+                f"{party_type} on '{company}'"
             )[:140],
             message=(
-                f"Company '{company}' has no {control_field} set. Set the "
-                f"default {'receivable' if party_type == 'Customer' else 'payable'} "
-                f"account on the Company record, then re-run."
+                f"Company '{company}' has no {control_field} set and no "
+                f"{account_type}-type account exists to fall back to. Add a "
+                f"{account_type} account to the chart of accounts, then re-run."
             ),
         )
         return False
@@ -566,6 +568,101 @@ def _reconcile_one_party(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _ensure_clearing_account(company):
+    """Return the company's "Sage Payments Clearing" leaf account, creating it
+    if it does not exist yet.
+
+    The clearing account is the contra side of every reconciliation journal.
+    It is provisioned here -- rather than left as a manual setup step -- so
+    turning on reconciliation never silently no-ops on a company whose
+    account was never hand-created.
+
+    Created as a plain leaf account directly under the company's Asset root
+    (the same "flat under root" placement account.py uses for Sage accounts),
+    with no account_type so a Journal Entry can post to it with no party. It
+    is tagged custom_sage_managed = 1 (when that field exists) so the optional
+    one-time account-cleanup pass in account.py treats it as integration-owned
+    and never deletes it.
+
+    Returns the account name, or None if it could not be created (no Asset
+    root group on the company, or the insert failed) -- the caller then skips
+    the company for this run and the reason is in the Error Log.
+    """
+    existing = frappe.db.get_value(
+        "Account",
+        {
+            "company": company,
+            "account_name": CLEARING_ACCOUNT_NAME,
+            "is_group": 0,
+        },
+        "name",
+    )
+    if existing:
+        return existing
+
+    asset_root = frappe.db.get_value(
+        "Account",
+        {
+            "company": company,
+            "root_type": "Asset",
+            "is_group": 1,
+            "parent_account": ["in", ["", None]],
+        },
+        "name",
+    )
+    if not asset_root:
+        frappe.log_error(
+            title=(
+                f"Sage Reconciliation: cannot create clearing account for "
+                f"'{company}'"
+            )[:140],
+            message=(
+                f"No Asset root group found on company '{company}', so the "
+                f"'{CLEARING_ACCOUNT_NAME}' account could not be created. "
+                f"Check the company's chart of accounts."
+            ),
+        )
+        return None
+
+    account_dict = {
+        "doctype": "Account",
+        "account_name": CLEARING_ACCOUNT_NAME,
+        "company": company,
+        "parent_account": asset_root,
+        "root_type": "Asset",
+        "is_group": 0,
+    }
+    # Tag it integration-owned so account.py's optional cleanup pass keeps it.
+    # Guarded -- the field only exists once the account sync has run once.
+    if frappe.db.exists(
+        "Custom Field", {"dt": "Account", "fieldname": "custom_sage_managed"}
+    ):
+        account_dict["custom_sage_managed"] = 1
+
+    try:
+        account = frappe.get_doc(account_dict)
+        account.insert(ignore_permissions=True)
+        frappe.db.commit()
+        frappe.logger("sbca").info(
+            f"Sage Reconciliation: created '{CLEARING_ACCOUNT_NAME}' on "
+            f"'{company}' -> {account.name}"
+        )
+        return account.name
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(
+            title=(
+                f"Sage Reconciliation: failed to create clearing account "
+                f"for '{company}'"
+            )[:140],
+            message=(
+                f"Could not create '{CLEARING_ACCOUNT_NAME}' under "
+                f"'{asset_root}' on company '{company}'.\nError: {e}"
+            ),
+        )
+        return None
+
 
 def _match_party(party_type, party_name, sage_id):
     """Resolve a Sage party to an ERPNext Customer/Supplier name.
