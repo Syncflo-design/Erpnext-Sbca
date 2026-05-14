@@ -24,6 +24,8 @@
   "push_scheduled_section",
   "push_item_prices_scheduled",
   "push_item_updates_scheduled",
+  "push_reconciliation_on_schedule",
+  "last_reconciliation_sync",
   "push_triggered_section",
   "push_item_on_insert",
   "push_sales_order_on_submit",
@@ -171,6 +173,20 @@
    "fieldname": "push_item_updates_scheduled",
    "fieldtype": "Check",
    "label": "Push Item Updates"
+  },
+  {
+   "default": "0",
+   "description": "Scheduled (daily). Pulls each customer/supplier closing balance from Sage and posts one reconciliation Journal Entry per party to align ERPNext's AR/AP with Sage. Defaults OFF until Pharoh's ReconciliationSync endpoints are live.",
+   "fieldname": "push_reconciliation_on_schedule",
+   "fieldtype": "Check",
+   "label": "Run Reconciliation Sync"
+  },
+  {
+   "description": "Set automatically after each fully successful reconciliation run. Used as the opening date for the next run's Sage statement pull. Blank = first run (falls back to the financial year start).",
+   "fieldname": "last_reconciliation_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Reconciliation Sync",
+   "read_only": 1
   },
   {
    "fieldname": "push_triggered_section",

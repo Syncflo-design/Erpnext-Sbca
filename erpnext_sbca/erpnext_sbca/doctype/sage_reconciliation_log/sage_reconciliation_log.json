@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-05-14 00:00:00.000000",
+ "description": "One row per company / party / period reconciliation outcome. Written by erpnext_sbca.API.reconciliation. Acts as the idempotent guard so the daily reconciliation job is safe to re-run.",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "party_type",
+  "party",
+  "period",
+  "column_break_amounts",
+  "sage_closing_balance",
+  "erpnext_outstanding",
+  "delta",
+  "section_break_result",
+  "journal_entry",
+  "status",
+  "reconciliation_date",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1,
+   "reqd": 1,
+   "description": "ERPNext Company (= Sage tenant) this reconciliation row belongs to."
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party Type",
+   "options": "Customer\nSupplier",
+   "read_only": 1,
+   "description": "Whether this row reconciles a Customer (AR) or a Supplier (AP)."
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party",
+   "options": "party_type",
+   "read_only": 1,
+   "description": "The reconciled Customer or Supplier. May be blank on a Failed row when the Sage party could not be matched to an ERPNext record."
+  },
+  {
+   "fieldname": "period",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Period",
+   "read_only": 1,
+   "description": "Reconciliation period as YYYY-MM (e.g. 2026-05)."
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sage_closing_balance",
+   "fieldtype": "Currency",
+   "label": "Sage Closing Balance",
+   "read_only": 1,
+   "description": "Closing balance Sage returned for this party for the period."
+  },
+  {
+   "fieldname": "erpnext_outstanding",
+   "fieldtype": "Currency",
+   "label": "ERPNext Outstanding",
+   "read_only": 1,
+   "description": "ERPNext outstanding balance for this party at the period close, as a positive amount owed."
+  },
+  {
+   "fieldname": "delta",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Delta",
+   "read_only": 1,
+   "description": "Sage closing balance minus ERPNext outstanding. The amount the reconciliation journal moves the control account by."
+  },
+  {
+   "fieldname": "section_break_result",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
+   "description": "The reconciliation Journal Entry posted for this row. Blank on Skipped / Failed rows."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Created\nSkipped\nFailed",
+   "read_only": 1,
+   "description": "Created = journal posted. Skipped = no action needed. Failed = an error occurred (see Error Message)."
+  },
+  {
+   "fieldname": "reconciliation_date",
+   "fieldtype": "Date",
+   "label": "Reconciliation Date",
+   "read_only": 1,
+   "description": "Posting date used for the reconciliation journal (period close, or today for the current month)."
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "read_only": 1,
+   "description": "Populated on Failed rows with the error encountered while reconciling this party."
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-05-14 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Erpnext Sbca",
+ "name": "Sage Reconciliation Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "party",
+ "track_changes": 1
+}

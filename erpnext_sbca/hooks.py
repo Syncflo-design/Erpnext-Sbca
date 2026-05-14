@@ -197,9 +197,11 @@ scheduler_events = {
         "erpnext_sbca.API.item_details.get_categories_from_sage",
         "erpnext_sbca.API.item_details.get_inventory_from_sage"
 	],
-# 	"daily": [
-# 		"erpnext_sbca.tasks.daily"
-# 	],
+	"daily": [
+		# Month-end AR/AP balance alignment against Sage. Gated by the
+		# push_reconciliation_on_schedule toggle on Erpnext Sbca Settings.
+		"erpnext_sbca.API.reconciliation.run_reconciliation"
+	],
 # 	"hourly": [
 # 		"erpnext_sbca.tasks.hourly"
 # 	],

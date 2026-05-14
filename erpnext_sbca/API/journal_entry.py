@@ -152,6 +152,11 @@ def post_journal_entry(doc, method):
     """Wrapper: enqueue the push so submit doesn't block on Pharoh."""
     if not is_sync_enabled("push_journal_entry_on_submit"):
         return
+    # Reconciliation journals (erpnext_sbca.API.reconciliation) are derived
+    # FROM Sage balances -- pushing them back to Sage would create a feedback
+    # loop. They are tagged with a "SAGE-RECON-" reference; never re-push them.
+    if (doc.get("cheque_no") or "").startswith("SAGE-RECON-"):
+        return
     frappe.enqueue(
         "erpnext_sbca.API.journal_entry._post_journal_entry_worker",
         queue="default",
