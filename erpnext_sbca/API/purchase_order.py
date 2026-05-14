@@ -327,11 +327,21 @@ def get_purchase_order_from_sage():
             created_pos = []
             skipped_pos = []
 
+            # Default warehouse — must be configured on the Company Sage Integration row
+            default_warehouse = company.get("default_warehouse")
+            if not default_warehouse:
+                frappe.log_error(
+                    f"Company: {company.company} | PO sync skipped — Default Warehouse not set on Company Sage Integration row.",
+                    "Sage PO Sync — Config Error"
+                )
+                continue
+
             # Caches to reduce DB queries
             uom_cache = set()
             stock_uom_cache = set()
             item_cache = set()
             group_cache = set()
+            warehouse_cache = {}
 
             batch_size = 20
 
@@ -427,6 +437,9 @@ def get_purchase_order_from_sage():
 
                             item_code = item_code_param
 
+                            # Warehouse — always use the configured default
+                            warehouse_to_use = default_warehouse
+
                             po_doc.append("items", {
                                 "item_code": item_code,
                                 "item_name": item_name_param,
@@ -439,7 +452,7 @@ def get_purchase_order_from_sage():
                                 "amount": item.get("amount", 0),
                                 "discount_percentage": item.get("discount_percentage", 0),
                                 "discount_amount": item.get("discount_amount", 0),
-                                "warehouse": item.get("warehouse") or "",
+                                "warehouse": warehouse_to_use,
                                 "cost_center": item.get("cost_center") or "",
                                 "project": item.get("project") or ""
                             })

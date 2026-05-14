@@ -253,12 +253,21 @@ def get_sales_order_from_sage():
             created_sos = []
             skipped_sos = []
 
+            # Default warehouse — must be configured on the Company Sage Integration row
+            default_warehouse = company.get("default_warehouse")
+            if not default_warehouse:
+                frappe.log_error(
+                    f"Company: {company.company} | SO sync skipped — Default Warehouse not set on Company Sage Integration row.",
+                    "Sage SO Sync — Config Error"
+                )
+                continue
+
             # Caches
             uom_cache = set()
             stock_uom_cache = set()
             item_cache = set()
             group_cache = set()
-            warehouse_cache = {}  # Cache for warehouses
+            warehouse_cache = {}
 
             batch_size = 20
 
@@ -354,32 +363,8 @@ def get_sales_order_from_sage():
 
                             item_code = item_code_param
 
-                            # --- Warehouse Handling ---
-                            raw_warehouse = item.get("warehouse") or ""
-                            if not raw_warehouse:
-                                base_warehouse_name = "All Warehouses"
-                            else:
-                                base_warehouse_name = raw_warehouse.strip() if isinstance(raw_warehouse, str) else str(raw_warehouse)
-
-                            # ERPNext auto adds company suffix (first letter capitalized)
-                            company_suffix = company.company[0].upper()
-                            final_warehouse_name = f"{base_warehouse_name} - {company_suffix}"
-
-                            # Check cache first
-                            if final_warehouse_name in warehouse_cache:
-                                warehouse_to_use = warehouse_cache[final_warehouse_name]
-                            else:
-                                existing_wh = frappe.db.exists("Warehouse", final_warehouse_name)
-                                if existing_wh:
-                                    warehouse_to_use = final_warehouse_name
-                                else:
-                                    wh_doc = frappe.new_doc("Warehouse")
-                                    wh_doc.warehouse_name = base_warehouse_name  # ERPNext adds suffix automatically
-                                    wh_doc.company = company.company
-                                    wh_doc.insert(ignore_permissions=True)
-                                    warehouse_to_use = final_warehouse_name
-
-                                warehouse_cache[final_warehouse_name] = warehouse_to_use
+                            # Warehouse — always use the configured default
+                            warehouse_to_use = default_warehouse
 
                             # Append item
                             so_doc.append("items", {

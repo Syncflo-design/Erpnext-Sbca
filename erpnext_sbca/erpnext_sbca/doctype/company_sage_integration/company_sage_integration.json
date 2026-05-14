@@ -19,6 +19,7 @@
   "client_type",
   "use_oauth",
   "company",
+  "default_warehouse",
   "sage_pos_customer_name",
   "session_id",
   "strip_defaults_on_next_sync",
@@ -145,6 +146,14 @@
    "in_list_view": 1,
    "label": "Setup Complete",
    "read_only": 1
+  },
+  {
+   "fieldname": "default_warehouse",
+   "fieldtype": "Link",
+   "label": "Default Warehouse",
+   "options": "Warehouse",
+   "description": "Warehouse assigned to all Sales Order and Purchase Order items pulled from Sage. Must be set before SO/PO sync will run.",
+   "in_list_view": 0
   }
  ],
  "grid_page_length": 50,
