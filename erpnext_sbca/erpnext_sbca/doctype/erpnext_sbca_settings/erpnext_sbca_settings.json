@@ -17,7 +17,9 @@
   "pull_scheduled_col_break",
   "sync_accounts",
   "sync_suppliers",
+  "sync_supplier_categories",
   "sync_customers",
+  "sync_customer_categories",
   "sync_sales_persons",
   "sync_sales_orders",
   "sync_purchase_orders",
@@ -129,10 +131,24 @@
   },
   {
    "default": "1",
+   "description": "Scheduled. Creates a leaf Supplier Group for each Sage supplier category.",
+   "fieldname": "sync_supplier_categories",
+   "fieldtype": "Check",
+   "label": "Pull Supplier Categories"
+  },
+  {
+   "default": "1",
    "description": "Scheduled",
    "fieldname": "sync_customers",
    "fieldtype": "Check",
    "label": "Pull Customers"
+  },
+  {
+   "default": "1",
+   "description": "Scheduled. Creates a leaf Customer Group for each Sage customer category.",
+   "fieldname": "sync_customer_categories",
+   "fieldtype": "Check",
+   "label": "Pull Customer Categories"
   },
   {
    "default": "1",

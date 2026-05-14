@@ -3,7 +3,104 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import is_sync_enabled, safe_strip, chunks
+from erpnext_sbca.API.helper_function import (
+    is_sync_enabled,
+    safe_strip,
+    chunks,
+    ensure_party_group,
+)
+
+
+def _default_supplier_group():
+    """First leaf Supplier Group on this site -- the fallback when a Sage
+    supplier carries no category, or its category cannot be created.
+
+    Mirrors customer.py's _default_customer_group(): a leaf must be used
+    because ERPNext rejects assigning a Supplier to a group-tree node.
+    """
+    return (
+        frappe.db.get_value(
+            "Supplier Group", {"is_group": 0}, "name", order_by="creation asc"
+        )
+        or "All Supplier Groups"
+    )
+
+
+def get_supplier_categories_from_sage():
+    """Mirror Sage's Supplier Categories into ERPNext as leaf Supplier Groups.
+
+    Gated by the `sync_supplier_categories` toggle. Runs ahead of
+    get_supplier_from_sage in the scheduler so the groups exist before the
+    supplier pull assigns parties into them (the supplier pull also creates
+    them lazily via ensure_party_group, so the ordering is a nicety).
+
+    Pharoh endpoint: POST /api/SuppliersSync/get-supplier-categories-for-erpnext
+    Response: a bare JSON array of {description, id, modified, created}. Only
+    `description` (the category name) is used -- each becomes a leaf Supplier
+    Group under "All Supplier Groups". The Sage `id` is intentionally not
+    stored: supplier records carry the category by name, so the name is the
+    join key.
+    """
+    if not is_sync_enabled("sync_supplier_categories"):
+        return
+
+    settings = frappe.get_doc("Erpnext Sbca Settings")
+    company_settings = frappe.db.get_all(
+        "Company Sage Integration",
+        filters={"parent": settings.name},
+        fields=["name"],
+    )
+
+    for company in company_settings:
+        try:
+            company = frappe.get_doc("Company Sage Integration", company.name)
+            apikey = company.get_password("api_key")
+            payload = {
+                "loginName": company.username,
+                "loginPwd": company.get_password("password"),
+                "useOAuth": bool(company.use_oauth),
+                "sessionToken": company.get_password("session_id"),
+                "provider": company.get_password("provider"),
+            }
+            endpoint_url = (
+                f"{url}/api/SuppliersSync/get-supplier-categories-for-erpnext"
+                f"?apikey={apikey}"
+            )
+
+            categories = make_post_request(endpoint_url, json=payload)
+            if not isinstance(categories, list):
+                frappe.log_error(
+                    title=(
+                        f"Sage Supplier Category Sync: unexpected response "
+                        f"for {company.company}"
+                    )[:140],
+                    message=(
+                        f"Expected a JSON array, got "
+                        f"{type(categories).__name__}: {categories}"
+                    ),
+                )
+                continue
+
+            ensured = 0
+            for cat in categories:
+                if isinstance(cat, dict) and ensure_party_group(
+                    "Supplier Group", cat.get("description")
+                ):
+                    ensured += 1
+            frappe.db.commit()
+            frappe.logger("sbca").info(
+                f"Sage Supplier Category Sync {company.company}: "
+                f"{len(categories)} categories returned, {ensured} groups ensured."
+            )
+
+        except Exception as e:
+            frappe.log_error(
+                title=(
+                    f"Sage Supplier Category Sync Fatal Error for "
+                    f"{company.company}"
+                )[:140],
+                message=str(e),
+            )
 
 
 def get_supplier_from_sage():
@@ -59,7 +156,13 @@ def get_supplier_from_sage():
                         if frappe.db.exists("Supplier", supplier_filter):
                             # Update existing supplier
                             sup_doc = frappe.get_doc("Supplier", supplier_filter)
-                            sup_doc.supplier_group = safe_strip(sup_data.get("supplierGroup")) or "All Supplier Groups"
+                            sup_doc.supplier_group = (
+                                ensure_party_group(
+                                    "Supplier Group",
+                                    sup_data.get("supplierGroup"),
+                                )
+                                or _default_supplier_group()
+                            )
                             sup_doc.supplier_type = safe_strip(sup_data.get("supplierType")) or "Company"
                             sup_doc.tax_id = safe_strip(sup_data.get("taxId")) or ""
                             sup_doc.email_id = safe_strip(sup_data.get("emailId")) or ""
@@ -78,7 +181,13 @@ def get_supplier_from_sage():
                             sup_doc = frappe.get_doc({
                                 "doctype": "Supplier",
                                 "supplier_name": sup_name,
-                                "supplier_group": safe_strip(sup_data.get("supplierGroup")) or "All Supplier Groups",
+                                "supplier_group": (
+                                    ensure_party_group(
+                                        "Supplier Group",
+                                        sup_data.get("supplierGroup"),
+                                    )
+                                    or _default_supplier_group()
+                                ),
                                 "supplier_type": safe_strip(sup_data.get("supplierType")) or "Company",
                                 "tax_id": safe_strip(sup_data.get("taxId")) or "",
                                 "email_id": safe_strip(sup_data.get("emailId")) or "",

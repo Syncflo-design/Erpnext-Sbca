@@ -40,7 +40,12 @@ import frappe
 from frappe.integrations.utils import make_post_request
 
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import is_sync_enabled, safe_strip, chunks
+from erpnext_sbca.API.helper_function import (
+    is_sync_enabled,
+    safe_strip,
+    chunks,
+    ensure_party_group,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +83,84 @@ def _default_territory():
         "name",
         order_by="creation asc",
     ) or "Rest Of The World"
+
+
+def get_customer_categories_from_sage():
+    """Mirror Sage's Customer Categories into ERPNext as leaf Customer Groups.
+
+    Gated by the `sync_customer_categories` toggle. Runs ahead of
+    get_customers_from_sage in the scheduler so the groups exist before the
+    customer pull assigns parties into them (the customer pull also creates
+    them lazily via ensure_party_group, so the ordering is a nicety, not a
+    hard requirement).
+
+    Pharoh endpoint: POST /api/CustomersSync/get-customer-categories-for-erpnext
+    Response: a bare JSON array of {description, id, modified, created}. Only
+    `description` (the category name) is used -- each becomes a leaf Customer
+    Group under "All Customer Groups". The Sage `id` is intentionally not
+    stored: customer records carry the category by name, so the name is the
+    join key (renames are rare -- revisit id-tracking only if that changes).
+    """
+    if not is_sync_enabled("sync_customer_categories"):
+        return
+
+    settings = frappe.get_doc("Erpnext Sbca Settings")
+    company_settings = frappe.db.get_all(
+        "Company Sage Integration",
+        filters={"parent": settings.name},
+        fields=["name"],
+    )
+
+    for company in company_settings:
+        try:
+            company = frappe.get_doc("Company Sage Integration", company.name)
+            apikey = company.get_password("api_key")
+            payload = {
+                "loginName": company.username,
+                "loginPwd": company.get_password("password"),
+                "useOAuth": bool(company.use_oauth),
+                "sessionToken": company.get_password("session_id"),
+                "provider": company.get_password("provider"),
+            }
+            endpoint_url = (
+                f"{url}/api/CustomersSync/get-customer-categories-for-erpnext"
+                f"?apikey={apikey}"
+            )
+
+            categories = make_post_request(endpoint_url, json=payload)
+            if not isinstance(categories, list):
+                frappe.log_error(
+                    title=(
+                        f"Sage Customer Category Sync: unexpected response "
+                        f"for {company.company}"
+                    )[:140],
+                    message=(
+                        f"Expected a JSON array, got "
+                        f"{type(categories).__name__}: {categories}"
+                    ),
+                )
+                continue
+
+            ensured = 0
+            for cat in categories:
+                if isinstance(cat, dict) and ensure_party_group(
+                    "Customer Group", cat.get("description")
+                ):
+                    ensured += 1
+            frappe.db.commit()
+            frappe.logger("sbca").info(
+                f"Sage Customer Category Sync {company.company}: "
+                f"{len(categories)} categories returned, {ensured} groups ensured."
+            )
+
+        except Exception as e:
+            frappe.log_error(
+                title=(
+                    f"Sage Customer Category Sync Fatal Error for "
+                    f"{company.company}"
+                )[:140],
+                message=str(e),
+            )
 
 
 
@@ -279,7 +362,10 @@ def _upsert_customer(sage_id, cust_data, created, updated, skipped, sales_team_s
     resolved = {
         "customer_name": cust_name,
         "customer_type": "Company",  # Sage has no native customer_type
-        "customer_group": _default_customer_group(),
+        "customer_group": (
+            ensure_party_group("Customer Group", cust_data.get("customer_group"))
+            or _default_customer_group()
+        ),
         "territory": _default_territory(),
         "email_id": safe_strip(cust_data.get("email_id")) or "",
         "mobile_no": safe_strip(cust_data.get("mobile_no")) or "",

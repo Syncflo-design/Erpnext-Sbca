@@ -177,7 +177,11 @@ doc_events = {
 
 scheduler_events = {
 	"all": [
-		"erpnext_sbca.API.sales_order.get_sales_order_from_sage",
+		# Party categories first -- they create the Customer / Supplier Groups
+        # that the customer / supplier pulls assign parties into.
+        "erpnext_sbca.API.customer.get_customer_categories_from_sage",
+        "erpnext_sbca.API.supplier.get_supplier_categories_from_sage",
+        "erpnext_sbca.API.sales_order.get_sales_order_from_sage",
         "erpnext_sbca.API.purchase_order.get_purchase_order_from_sage",
         "erpnext_sbca.API.supplier.get_supplier_from_sage",
         # Sales Persons must run before Customers — customer.sales_team
