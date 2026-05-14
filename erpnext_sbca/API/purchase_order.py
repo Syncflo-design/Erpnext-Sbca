@@ -277,6 +277,15 @@ def _post_purchase_order_worker(doc_name):
 def get_purchase_order_from_sage():
     if not is_sync_enabled("sync_purchase_orders"):
         return
+
+    # Read last sync date once — shared across all companies in this run.
+    # After a successful run the date is written back so the next run only
+    # pulls orders that changed since then.
+    last_date = (
+        frappe.db.get_single_value("Erpnext Sbca Settings", "order_sync_from_date")
+        or "2020-01-01"
+    )
+
     settings = frappe.get_doc("Erpnext Sbca Settings")
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
@@ -287,7 +296,6 @@ def get_purchase_order_from_sage():
             loginPwd = company.get_password("password")
             provider = company.get_password("provider")
             session_token = company.get_password("session_id")
-            last_date = frappe.utils.add_days(frappe.utils.today(), -30)  # Dynamic: last 7 days
 
             po_url = f"{url}/api/PurchaseOrder/get-purchaseorders-for-erpnext?apikey={apikey}&lastDate={last_date}"
             payload = {"loginName": loginName, "loginPwd": loginPwd, "useOAuth": bool(company.use_oauth),
@@ -461,3 +469,9 @@ def get_purchase_order_from_sage():
         except Exception as e:
             fatal_title = f"Sage Fatal Err {company.company}: {str(e)}"[:140]
             frappe.log_error(fatal_title)
+
+    # Write today back as the last sync date so the next run is incremental.
+    # Runs even if individual companies errored — their failures are logged above.
+    frappe.db.set_single_value(
+        "Erpnext Sbca Settings", "order_sync_from_date", frappe.utils.today()
+    )
