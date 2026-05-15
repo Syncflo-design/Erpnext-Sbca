@@ -51,7 +51,6 @@
   "stock_tab",
   "stock_intro",
   "stock_toggles_section",
-  "sync_stock_on_hand",
   "push_stock_adjustment_on_submit"
  ],
  "fields": [
@@ -107,13 +106,6 @@
    "fieldname": "sync_additional_prices",
    "fieldtype": "Check",
    "label": "Pull Additional Prices"
-  },
-  {
-   "default": "1",
-   "description": "Scheduled",
-   "fieldname": "sync_stock_on_hand",
-   "fieldtype": "Check",
-   "label": "Pull Stock-on-hand"
   },
   {
    "fieldname": "pull_scheduled_col_break",

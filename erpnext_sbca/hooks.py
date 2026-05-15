@@ -194,7 +194,8 @@ scheduler_events = {
         "erpnext_sbca.API.item_details.get_price_list_from_sage",
         "erpnext_sbca.API.customer.get_customers_from_sage",
         "erpnext_sbca.API.account.get_accounts_from_sage",
-        "erpnext_sbca.API.item_details.get_item_inventory_qty_on_hand_from_sage",
+        # get_item_inventory_qty_on_hand_from_sage is no longer scheduled — it
+        # is now an on-demand button on the Stock tab (Pull Stock On Hand).
         "erpnext_sbca.API.item_details.update_item_job",
         "erpnext_sbca.API.item_details.get_addition_prices_from_sage",
         "erpnext_sbca.API.item_details.update_prices",

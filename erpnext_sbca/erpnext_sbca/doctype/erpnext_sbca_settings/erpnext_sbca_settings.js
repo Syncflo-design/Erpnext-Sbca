@@ -32,6 +32,7 @@ frappe.ui.form.on("Erpnext Sbca Settings", {
         _render_stock_status(frm);
         _add_import_stock_button(frm);
         _add_disable_qty_tracking_button(frm);
+        _add_pull_stock_on_hand_button(frm);
     },
 
     active_company(frm) {
@@ -688,6 +689,56 @@ function _add_disable_qty_tracking_button(frm) {
                                 indicator: "green",
                             });
                             frm.reload_doc();
+                        },
+                    });
+                }
+            );
+        },
+        __("Stock Setup")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Pull Stock On Hand — on-demand refresh of Sage's qty-on-hand + cost info
+// onto ERPNext Items (per Active Company). Informational only — does NOT
+// touch the stock ledger. Replaces the old scheduled sync_stock_on_hand pull.
+// ---------------------------------------------------------------------------
+function _add_pull_stock_on_hand_button(frm) {
+    frm.add_custom_button(
+        __("Pull Stock On Hand"),
+        function () {
+            const company = frm.doc.active_company;
+            if (!company) {
+                frappe.msgprint(__("Pick an Active Company on the Accounts tab first."));
+                return;
+            }
+            frappe.confirm(
+                __(
+                    "Pull Sage's current on-hand quantities and costs for <b>{0}</b>?<br><br>" +
+                        "This stamps each matching ERPNext Item with Sage's quantity-on-hand, " +
+                        "valuation rate, standard rate and last purchase cost. It is " +
+                        "<b>informational only</b> — it does not change ERPNext's stock ledger. " +
+                        "Blocked once the Company has cut over (stock import complete).",
+                    [frappe.utils.escape_html(company)]
+                ),
+                function () {
+                    frappe.call({
+                        method: "erpnext_sbca.API.item_details.get_item_inventory_qty_on_hand_from_sage",
+                        args: { company: company },
+                        freeze: true,
+                        freeze_message: __("Pulling stock-on-hand from Sage…"),
+                        callback: function (r) {
+                            if (!r.message) return;
+                            const s = r.message;
+                            frappe.msgprint({
+                                title: __("Stock On Hand Pulled"),
+                                message: __(
+                                    "Sage qty-on-hand pulled for <b>{0}</b>.<br>" +
+                                        "Items updated: <b>{1}</b> · skipped: <b>{2}</b>",
+                                    [frappe.utils.escape_html(company), s.updated, s.skipped]
+                                ),
+                                indicator: "green",
+                            });
                         },
                     });
                 }

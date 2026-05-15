@@ -1,0 +1,135 @@
+================================================================================
+PHAROH ENDPOINT BRIEF — Disable Sage Qty Tracking
+================================================================================
+
+Endpoint to build:   POST /api/StockSync/disable-qty-tracking
+Consumed by:         erpnext_sbca/API/stock.py  ->  disable_sage_qty_tracking()
+Status:              NOT YET LIVE. The ERPNext side is built and waiting on this.
+
+--------------------------------------------------------------------------------
+1. PURPOSE
+--------------------------------------------------------------------------------
+This is the second and final step of the one-time STOCK CUTOVER.
+
+After ERPNext has imported the opening stock levels (see the Get Stock Levels
+brief), the customer runs this to tell Sage: "stop tracking quantities for these
+items." From that point Sage no longer maintains a balance for them — ERPNext is
+the sole stock authority. Sage still receives the financial VALUE of stock
+movements via the existing invoice / stock-adjustment pushes, but it no longer
+holds quantities.
+
+In Sage terms: each listed item must be switched to non-physical /
+"Do Not Track Balance". This is the inverse of the "Physical": true state.
+
+It is called ON DEMAND by a button in ERPNext (Erpnext Sbca Settings -> Stock tab
+-> "Disable Sage Qty Tracking"), once per company, and only after the stock
+import for that company has completed.
+
+PER-ITEM, NOT PER-COMPANY: Sage's qty-tracking flag lives on each item. This
+endpoint receives an explicit list of item codes and must disable tracking on
+each one individually.
+
+--------------------------------------------------------------------------------
+2. AUTH / COMPANY SCOPING
+--------------------------------------------------------------------------------
+- apikey is passed in the query string: ?apikey={apikey}
+- The apikey encodes which Sage company this request is for. All item codes in
+  the request belong to that company.
+- Sage login credentials are passed inside the request body under "credentials"
+  (see below). Honour basic-auth vs OAuth the same way as the other endpoints.
+
+--------------------------------------------------------------------------------
+3. REQUEST
+--------------------------------------------------------------------------------
+POST /api/StockSync/disable-qty-tracking?apikey=<API_KEY>
+Content-Type: application/json
+
+Body:
+{
+  "credentials": {
+    "loginName":    "<sage login>",
+    "loginPwd":     "<sage password>",
+    "useOAuth":     false,
+    "sessionToken": "<oauth session token, when useOAuth is true>",
+    "provider":     "<oauth provider, when useOAuth is true>"
+  },
+  "itemCodes": [
+    "WIDGET-001",
+    "GADGET-114",
+    "BOLT-M6-50"
+  ]
+}
+
+Field requirements:
+  credentials   (object)  REQUIRED. Standard Sage credential block.
+  itemCodes     (array of strings)  REQUIRED. The Sage item codes to switch to
+                          non-physical / "Do Not Track Balance". These match the
+                          item codes Sage already holds — same codes the item
+                          sync and Get Stock Levels endpoint use.
+
+--------------------------------------------------------------------------------
+4. BEHAVIOUR
+--------------------------------------------------------------------------------
+For each item code in itemCodes:
+  - Locate the item in the Sage company identified by the apikey.
+  - Set it to non-physical / "Do Not Track Balance" (disable quantity tracking).
+  - This is a per-item operation — process them independently so one bad item
+    code doesn't abort the rest.
+
+Idempotent: if an item is already non-physical, treat that as a success (no-op),
+not an error. ERPNext only runs this once per company, but the endpoint should
+be safe to re-run.
+
+An unknown item code (not found in Sage) should go into the errors list, not
+abort the run.
+
+--------------------------------------------------------------------------------
+5. RESPONSE
+--------------------------------------------------------------------------------
+Return a JSON OBJECT:
+
+{
+  "success":  true,
+  "disabled": 41,
+  "errors": [
+    "BOLT-M6-50: item not found in Sage"
+  ]
+}
+
+Field requirements:
+  success   (boolean)  REQUIRED. true if the operation ran to completion (even
+                       if some individual items errored). false only if the
+                       whole request failed (auth, Sage unreachable, malformed
+                       request, etc.).
+  disabled  (integer)  REQUIRED. Count of items actually switched to
+                       non-physical (including idempotent no-ops).
+  errors    (array of strings)  REQUIRED (may be empty). One readable line per
+                       item that could not be processed. ERPNext shows the count
+                       to the user and logs the detail.
+
+--------------------------------------------------------------------------------
+6. ERROR HANDLING
+--------------------------------------------------------------------------------
+- Whole-request failure (auth, Sage down, bad JSON): non-200 status with a
+  readable error body. ERPNext logs it and shows the user the error.
+- Partial failure (some items not found / not updatable): HTTP 200, success:true,
+  with those items listed in `errors`. ERPNext treats success:true as "done" and
+  records sage_qty_tracking_disabled = 1, surfacing the error count to the user.
+- If success is false or omitted, ERPNext treats the whole run as failed, does
+  NOT set the flag, and shows the error.
+
+--------------------------------------------------------------------------------
+7. WHAT ERPNext DOES WITH THE RESPONSE (for context)
+--------------------------------------------------------------------------------
+1. Refuses to call this at all unless stock_import_complete = 1 for the company
+   (ERPNext must already hold the stock before Sage's tracking is switched off).
+2. Gathers the company's Sage-managed physical item codes (Item records with
+   is_stock_item = 1 and a Sage selection ID) and sends them as itemCodes.
+3. On success:true — sets sage_qty_tracking_disabled = 1 on the company's
+   integration row and reports items_sent / disabled / error count to the user.
+4. On success:false or non-200 — leaves the flag unset, logs the error, shows
+   the user the failure.
+
+This runs ONCE per company. After it, Sage holds no quantities for the company's
+items — only their financial value, fed by the ongoing invoice and
+stock-adjustment pushes.

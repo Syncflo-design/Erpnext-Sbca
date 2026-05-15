@@ -48,84 +48,101 @@ def _ensure_sage_price_list_id_field():
         )
 
 
-def get_item_inventory_qty_on_hand_from_sage():
-    if not is_sync_enabled("sync_stock_on_hand"):
-        return
-    settings = frappe.get_doc("Erpnext Sbca Settings")
-    company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
-    for company in company_settings:
-        company = frappe.get_doc("Company Sage Integration", company.name)
-        # Once a Company has cut over (stock imported into ERPNext + Sage qty
-        # tracking disabled), ERPNext owns the stock. Skip it here so Sage's
-        # qty-on-hand pull can never overwrite ERPNext's authoritative levels.
-        if company.get("stock_import_complete"):
-            continue
-        apikey = company.get_password("api_key")
-        loginName = company.username
-        loginPwd = company.get_password("password")
-        provider = company.get_password("provider")
-        session_token = company.get_password("session_id")
-        lastDate = "1970-01-01"
-        inventory_url = f"{url}/api/InventorySync/get-inventory-qtyonhand-for-erpnext?apikey={apikey}&lastDate={lastDate}"
+@frappe.whitelist()
+def get_item_inventory_qty_on_hand_from_sage(company):
+    """On-demand: refresh Sage qty-on-hand + cost info onto ERPNext Items.
 
-        payload = {
-            "loginName": loginName,
-            "loginPwd": loginPwd,
-            "useOAuth": bool(company.use_oauth),
-            "sessionToken": session_token,
-            "provider": provider
-        }
+    Triggered by the "Pull Stock On Hand" button on the Stock tab, per Active
+    Company. Stamps each matching Item's valuation_rate, standard_rate,
+    last_purchase_rate and custom_quantity_on_hand from Sage's current
+    figures. This is INFORMATIONAL only — it does not touch ERPNext's stock
+    ledger.
 
-        def safe_float(val):
-            try:
-                return float(val)
-            except (TypeError, ValueError):
-                return 0.0
+    No longer scheduled: it was previously a cron job gated by the
+    sync_stock_on_hand toggle. It is now a deliberate button press.
 
+    Refuses for a Company that has already cut over (stock_import_complete):
+    ERPNext owns the stock from that point, so re-stamping Sage's qty-on-hand
+    would be misleading.
+    """
+    name = frappe.db.get_value(
+        "Company Sage Integration",
+        {"parent": "Erpnext Sbca Settings", "company": company},
+        "name",
+    )
+    if not name:
+        frappe.throw(f"No Company Sage Integration row for '{company}'.")
+
+    integration = frappe.get_doc("Company Sage Integration", name)
+    if integration.get("stock_import_complete"):
+        frappe.throw(
+            f"'{company}' has already cut over — ERPNext owns its stock. "
+            f"Pulling Sage's qty-on-hand would be misleading and is blocked."
+        )
+
+    apikey = integration.get_password("api_key")
+    lastDate = "1970-01-01"
+    inventory_url = (
+        f"{url}/api/InventorySync/get-inventory-qtyonhand-for-erpnext"
+        f"?apikey={apikey}&lastDate={lastDate}"
+    )
+    payload = {
+        "loginName": integration.username,
+        "loginPwd": integration.get_password("password"),
+        "useOAuth": bool(integration.use_oauth),
+        "sessionToken": integration.get_password("session_id"),
+        "provider": integration.get_password("provider"),
+    }
+
+    def safe_float(val):
         try:
-            # Fetch inventory from Sage
-            inventory = make_post_request(inventory_url, json=payload)
+            return float(val)
+        except (TypeError, ValueError):
+            return 0.0
 
-            updated_items = []
-            skipped_items = []
+    inventory = make_post_request(inventory_url, json=payload)
+    if not isinstance(inventory, list):
+        frappe.log_error(
+            title=f"Sage Pull Stock On Hand: bad response for {company}"[:140],
+            message=f"Expected a list from get-inventory-qtyonhand-for-erpnext, got: {inventory!r}",
+        )
+        frappe.throw(
+            f"Sage qty-on-hand endpoint returned an unexpected response for "
+            f"'{company}'. Check the Error Log."
+        )
 
-            batch_size = 50  # process 50 items at a time
+    updated = 0
+    skipped = 0
+    batch_size = 50
+    for batch in chunks(inventory, batch_size):
+        for item_data in batch:
+            item_code = item_data.get("code")
+            if not item_code:
+                skipped += 1
+                continue
+            try:
+                if frappe.db.exists("Item", {"item_code": item_code}):
+                    item_doc = frappe.get_doc("Item", {"item_code": item_code})
+                    item_doc.valuation_rate = safe_float(item_data.get("averageCost"))
+                    item_doc.standard_rate = safe_float(item_data.get("priceExclusive"))
+                    item_doc.last_purchase_rate = safe_float(item_data.get("lastCost"))
+                    item_doc.custom_quantity_on_hand = safe_float(item_data.get("quantityOnHand"))
+                    item_doc.save(ignore_permissions=True)
+                    updated += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                frappe.log_error(
+                    message=str(e),
+                    title=f"Error processing Item {item_code}"[:140],
+                )
+                skipped += 1
+        frappe.db.commit()
 
-            for batch in chunks(inventory, batch_size):
-                for item_data in batch:
-                    item_code = item_data.get("code")
-                    if not item_code:
-                        skipped_items.append(None)
-                        continue
-
-                    try:
-                        if frappe.db.exists("Item", {"item_code": item_code}):
-                            item_doc = frappe.get_doc("Item", {"item_code": item_code})
-
-                            # Update main fields
-                            item_doc.valuation_rate = safe_float(item_data.get("averageCost"))
-                            item_doc.standard_rate = safe_float(item_data.get("priceExclusive"))
-
-                            # Update informational fields
-                            item_doc.last_purchase_rate = safe_float(item_data.get("lastCost"))
-                            item_doc.custom_quantity_on_hand = safe_float(item_data.get("quantityOnHand"))
-
-                            item_doc.save(ignore_permissions=True)
-                            updated_items.append(item_code)
-                        else:
-                            skipped_items.append(item_code)
-
-                    except Exception as e:
-                        # Truncate error title to 140 chars
-                        title = f"Error processing Item {item_code}"[:140]
-                        frappe.log_error(message=str(e), title=title)
-                        skipped_items.append(item_code)
-
-                # Commit after each batch
-                frappe.db.commit()
-
-        except Exception as e:
-            frappe.log_error(message=str(e), title="Sage Inventory Sync Fatal Error"[:140])
+    frappe.logger("sbca").info(
+        f"Pull Stock On Hand for {company}: updated={updated}, skipped={skipped}"
+    )
+    return {"company": company, "updated": updated, "skipped": skipped}
 
 def get_addition_prices_from_sage():
     if not is_sync_enabled("sync_additional_prices"):

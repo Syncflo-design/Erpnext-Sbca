@@ -1,0 +1,121 @@
+================================================================================
+PHAROH ENDPOINT BRIEF — Get Stock Levels for ERPNext
+================================================================================
+
+Endpoint to build:   POST /api/StockSync/get-stock-levels-for-erpnext
+Consumed by:         erpnext_sbca/API/stock.py  ->  import_stock_levels_from_sage()
+Status:              NOT YET LIVE. The ERPNext side is built and waiting on this.
+
+--------------------------------------------------------------------------------
+1. PURPOSE
+--------------------------------------------------------------------------------
+This is the Sage side of the one-time STOCK CUTOVER.
+
+Background: a customer was running on Sage before going live on ERPNext, so Sage
+currently holds their real on-hand stock quantities. The cutover migrates those
+quantities into ERPNext once, after which ERPNext becomes the stock authority.
+
+This endpoint answers one question: "For this Sage company, what is every item's
+current on-hand quantity and unit cost?" ERPNext takes that answer and writes a
+single Opening Stock reconciliation.
+
+It is called ON DEMAND by a button in ERPNext (Erpnext Sbca Settings -> Stock tab
+-> "Import Stock Levels"), once per company. It is NOT polled on a schedule.
+
+--------------------------------------------------------------------------------
+2. AUTH / COMPANY SCOPING
+--------------------------------------------------------------------------------
+- apikey is passed in the query string: ?apikey={apikey}
+- The apikey encodes which Sage company this request is for. The endpoint must
+  return stock levels ONLY for that company. ERPNext relies on this — it does not
+  pass a company identifier separately.
+- Sage login credentials are passed in the request body (see below). Honour the
+  same basic-auth vs OAuth handling as the existing endpoints: when useOAuth is
+  false, use loginName/loginPwd; when true, use sessionToken/provider.
+
+--------------------------------------------------------------------------------
+3. REQUEST
+--------------------------------------------------------------------------------
+POST /api/StockSync/get-stock-levels-for-erpnext?apikey=<API_KEY>
+Content-Type: application/json
+
+Body (the standard credential block, identical to the existing inventory pulls):
+{
+  "loginName":    "<sage login>",
+  "loginPwd":     "<sage password>",
+  "useOAuth":     false,
+  "sessionToken": "<oauth session token, when useOAuth is true>",
+  "provider":     "<oauth provider, when useOAuth is true>"
+}
+
+--------------------------------------------------------------------------------
+4. RESPONSE
+--------------------------------------------------------------------------------
+Return a JSON ARRAY (a plain list, not wrapped in an object). One element per
+item that Sage holds stock information for:
+
+[
+  {
+    "item_code":       "WIDGET-001",
+    "quantity":        42.0,
+    "valuation_rate":  18.75
+  },
+  {
+    "item_code":       "GADGET-114",
+    "quantity":        0,
+    "valuation_rate":  5.10
+  },
+  ...
+]
+
+Field requirements:
+  item_code       (string)  REQUIRED. Must match the item code ERPNext already
+                            holds on the Item record (the same code the item
+                            sync uses). This is the join key — if it doesn't
+                            match, ERPNext skips the row.
+  quantity        (number)  REQUIRED. Current on-hand quantity for the company.
+                            May be 0 (ERPNext skips zero-qty rows — no opening
+                            position to establish).
+  valuation_rate  (number)  REQUIRED. Sage unit cost / average cost for the item.
+                            ERPNext uses this to value the opening stock, which
+                            drives the GL posting (Dr Stock In Hand). It MUST be
+                            Sage's real cost — quantity alone is not enough. If
+                            Sage genuinely has no cost for an item, send 0, but
+                            prefer a real number wherever possible.
+
+Notes:
+  - Include physical / stock-tracked items. Service items can be included or
+    omitted — ERPNext filters them out anyway (it only imports items where
+    is_stock_item = 1), but omitting them keeps the payload smaller.
+  - One row per item. Do not pre-aggregate across companies — the apikey already
+    scopes this to one company.
+
+--------------------------------------------------------------------------------
+5. ERROR HANDLING
+--------------------------------------------------------------------------------
+- On success: HTTP 200 with the JSON array described above. An empty array []
+  is a valid response (means Sage has no stock for this company).
+- On auth failure: HTTP 401/403. ERPNext surfaces the error to the user.
+- On any other failure: a non-200 status with a readable error body. ERPNext
+  logs the body to its Error Log and shows the user a "check the Error Log"
+  message.
+- Do NOT return HTTP 200 with an error object in place of the array — ERPNext
+  checks `isinstance(response, list)` and throws if it's not a list.
+
+--------------------------------------------------------------------------------
+6. WHAT ERPNext DOES WITH THE RESPONSE (for context)
+--------------------------------------------------------------------------------
+1. Calls this endpoint once for the selected company.
+2. For each row: looks up the Item by item_code. Skips it if the item doesn't
+   exist in ERPNext, isn't a stock item, or quantity is 0.
+3. Builds ONE Stock Reconciliation (purpose = "Opening Stock") with a line per
+   surviving item: item_code, the company's Default Warehouse, quantity,
+   valuation_rate.
+4. Submits it. This establishes ERPNext's opening stock position and posts the
+   matching GL entry.
+5. Sets stock_import_complete = 1 on the company's integration row. From then
+   on the scheduled qty-on-hand pull skips this company.
+
+The import runs ONCE per company. There is no reset path — a botched run is
+recovered on a fresh sandbox instance, so accuracy of this endpoint's data
+matters.
