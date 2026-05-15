@@ -1,5 +1,5 @@
 import frappe
-from erpnext_sbca.API.helper_function import as_int, is_sync_enabled, safe_strip, chunks
+from erpnext_sbca.API.helper_function import as_int, is_sync_enabled, safe_strip, chunks, resolve_is_stock_item
 from frappe.integrations.utils import (
 	make_post_request,
 )
@@ -55,6 +55,11 @@ def get_item_inventory_qty_on_hand_from_sage():
     company_settings = frappe.db.get_all("Company Sage Integration", filters={"parent": settings.name}, fields=["name"])
     for company in company_settings:
         company = frappe.get_doc("Company Sage Integration", company.name)
+        # Once a Company has cut over (stock imported into ERPNext + Sage qty
+        # tracking disabled), ERPNext owns the stock. Skip it here so Sage's
+        # qty-on-hand pull can never overwrite ERPNext's authoritative levels.
+        if company.get("stock_import_complete"):
+            continue
         apikey = company.get_password("api_key")
         loginName = company.username
         loginPwd = company.get_password("password")
@@ -402,16 +407,16 @@ def update_prices():
                             item_doc.save(ignore_permissions=True)
                             updated_items.append(item_code)
                         else:
-                            # Create new item
+                            # Create new item — is_stock_item from Sage's
+                            # physical/service flag (set once, on create).
                             item_doc = frappe.get_doc({
                                 "doctype": "Item",
                                 "item_code": item_code,
                                 "item_name": safe_strip(item_data.get("item_name")) or item_code,
                                 "stock_uom": "Nos",
                                 "item_group":"All Item Groups",
-                                "maintain_stock": 1,
                                 "custom_sub_category_size":"Small",
-                                "is_stock_item": 1,
+                                "is_stock_item": resolve_is_stock_item(item_data),
                                 "is_sales_item": 1,
                                 "is_purchase_item": 1,
                                 "valuation_rate": item_data.get("valuation_rate") or 0,
@@ -544,18 +549,25 @@ def get_inventory_from_sage():
                             group_doc.is_group = 0
                             group_doc.insert(ignore_permissions=True)
 
-                        if frappe.db.exists("Item", item_code):
-                            item_doc = frappe.get_doc("Item", item_code)
-                        else:
+                        is_new_item = not frappe.db.exists("Item", item_code)
+                        if is_new_item:
                             item_doc = frappe.new_doc("Item")
                             item_doc.item_code = item_code
+                        else:
+                            item_doc = frappe.get_doc("Item", item_code)
 
                         item_doc.item_name = item_data.get("item_name") or f"{item_code} - Item"
                         item_doc.description = item_data.get("description") or item_doc.item_name
                         item_doc.item_group = item_group
-                        item_doc.is_stock_item = item_data.get("is_stock_item", 0)
-                        if not frappe.db.exists("Item", item_code):
-                                    item_doc.stock_uom = uom
+                        # is_stock_item is set ONCE, on create, from Sage's
+                        # physical/service flag. After the item exists, ERPNext
+                        # owns the stock-tracking decision and the sync never
+                        # touches it again — otherwise a stock cutover (which
+                        # flips Sage's flag to service) would silently disable
+                        # ERPNext stock tracking on the next sync tick.
+                        if is_new_item:
+                            item_doc.is_stock_item = resolve_is_stock_item(item_data)
+                            item_doc.stock_uom = uom
                         item_doc.standard_rate = item_data.get("standard_rate", 0.0)
                         item_doc.custom_retail_price_incl_vat=item_data.get("standard_rate_incl", 0.0)
                         item_doc.custom_item_barcode=item_code

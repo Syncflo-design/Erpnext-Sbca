@@ -207,10 +207,22 @@ def post_stock_entry(doc, method):
 def post_stock_reconciliation(doc, method):
     """doc_events['Stock Reconciliation']['on_submit'] handler.
 
-    Stock Reconciliation always represents a net value correction — always push.
+    A Stock Reconciliation normally represents a net value correction that
+    originated in ERPNext — its value change is pushed to Sage.
+
+    EXCEPTION: an "Opening Stock" reconciliation is the one-time baseline
+    created by the Stock tab's Import Stock Levels feature. Those quantities
+    and values came FROM Sage in the first place — pushing them back would
+    double-count. "Opening Stock" is a starting point, never an adjustment
+    that originated in ERPNext, so it is always skipped here.
+
     Enqueues the shared worker so submit doesn't block on Pharoh.
     """
     if not is_sync_enabled("push_stock_adjustment_on_submit"):
+        return
+
+    if (doc.get("purpose") or "") == "Opening Stock":
+        # Sage-originated opening baseline — never push back to Sage.
         return
 
     frappe.enqueue(

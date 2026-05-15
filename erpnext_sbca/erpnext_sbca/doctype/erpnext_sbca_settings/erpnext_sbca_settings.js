@@ -27,10 +27,16 @@ frappe.ui.form.on("Erpnext Sbca Settings", {
         // Opening Balances — on-demand pull of Sage account opening balances.
         _add_pull_opening_balances_button(frm);
         _render_opening_balances_status(frm);
+
+        // Stock — one-time cutover: import Sage levels, then disable Sage tracking.
+        _render_stock_status(frm);
+        _add_import_stock_button(frm);
+        _add_disable_qty_tracking_button(frm);
     },
 
     active_company(frm) {
         _render_accounts_status(frm);
+        _render_stock_status(frm);
     },
 });
 
@@ -495,4 +501,198 @@ function _build_status_table_html(opts) {
             </table>
             <div style="color:#6c757d;font-size:11px;margin-top:8px;">${opts.footer}</div>
         </div>`;
+}
+
+// ===========================================================================
+// Stock tab — one-time cutover: import Sage stock levels, then disable Sage's
+// per-item quantity tracking. Both steps operate on the Active Company (set on
+// the Accounts tab) and each runs once.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Stock tab status banner for the Active Company.
+// ---------------------------------------------------------------------------
+function _render_stock_status(frm) {
+    const company = frm.doc.active_company;
+    const wrapper = frm.fields_dict.stock_intro;
+    if (!wrapper) return;
+
+    if (!company) {
+        const helpHtml = `
+            <div style="color:#6c757d;font-size:12px;line-height:1.5;margin:8px 0;">
+                <p>Pick an <b>Active Company</b> on the Accounts tab to see its
+                stock cutover status here.</p>
+                <p>The stock cutover is a one-time migration: import Sage's
+                on-hand levels into ERPNext, then disable Sage's quantity
+                tracking so ERPNext becomes the single source of truth.</p>
+            </div>`;
+        frm.set_df_property("stock_intro", "options", helpHtml);
+        frm.refresh_field("stock_intro");
+        return;
+    }
+
+    frappe.call({
+        method: "erpnext_sbca.API.stock.get_stock_setup_status",
+        args: { company: company },
+        callback: function (r) {
+            if (!r.message) return;
+            const s = r.message;
+
+            if (!s.has_integration) {
+                frm.set_df_property(
+                    "stock_intro",
+                    "options",
+                    `<div style="font-size:13px;margin:8px 0;padding:12px;background:#fff4e5;border-radius:6px;">
+                        <b>${frappe.utils.escape_html(company)}</b> has no Company Sage
+                        Integration row. Add one on the Connection tab first.
+                    </div>`
+                );
+                frm.refresh_field("stock_intro");
+                return;
+            }
+
+            const importLabel = s.stock_import_complete
+                ? `<span style="color:#1b7a3a;">done</span>`
+                : s.default_warehouse
+                    ? `<span style="color:#a05d00;">not yet run</span>`
+                    : `<span style="color:#a00;">blocked — no Default Warehouse set on the Connection tab</span>`;
+            const disableLabel = s.sage_qty_tracking_disabled
+                ? `<span style="color:#1b7a3a;">done</span>`
+                : s.stock_import_complete
+                    ? `<span style="color:#a05d00;">ready to run</span>`
+                    : `<span style="color:#6c757d;">waiting on stock import</span>`;
+
+            const html = `
+                <div style="font-size:13px;line-height:1.6;margin:8px 0;padding:12px;background:#f8f9fa;border-radius:6px;">
+                    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">${frappe.utils.escape_html(company)}</div>
+                    <div>Default Warehouse: <b>${s.default_warehouse ? frappe.utils.escape_html(s.default_warehouse) : "— not set —"}</b></div>
+                    <div>Physical (stock) items in system: <b>${s.stock_item_count}</b></div>
+                    <div style="margin-top:6px;">Step 1 — Import Stock Levels: ${importLabel}</div>
+                    <div>Step 2 — Disable Sage Qty Tracking: ${disableLabel}</div>
+                    <div style="color:#6c757d;font-size:11px;margin-top:8px;">
+                        <b>Import Stock Levels</b> creates one Opening Stock reconciliation
+                        into the Default Warehouse using Sage's quantities and unit costs,
+                        then stops the scheduled qty-on-hand pull for this Company.
+                        <b>Disable Sage Qty Tracking</b> then tells Sage to stop tracking
+                        quantities per item — ERPNext becomes the sole stock authority.
+                        Both run once.
+                    </div>
+                </div>`;
+            frm.set_df_property("stock_intro", "options", html);
+            frm.refresh_field("stock_intro");
+        },
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — Import Stock Levels (per Active Company, runs once).
+// ---------------------------------------------------------------------------
+function _add_import_stock_button(frm) {
+    frm.add_custom_button(
+        __("Import Stock Levels"),
+        function () {
+            const company = frm.doc.active_company;
+            if (!company) {
+                frappe.msgprint(__("Pick an Active Company on the Accounts tab first."));
+                return;
+            }
+            frappe.confirm(
+                __(
+                    "Import Sage's on-hand stock levels for <b>{0}</b>?<br><br>" +
+                        "This creates one <b>Opening Stock</b> reconciliation into the " +
+                        "Company's Default Warehouse, using Sage's quantities and unit " +
+                        "costs. It runs once — after this, ERPNext owns the stock and the " +
+                        "scheduled qty-on-hand pull skips this Company.",
+                    [frappe.utils.escape_html(company)]
+                ),
+                function () {
+                    frappe.call({
+                        method: "erpnext_sbca.API.stock.import_stock_levels_from_sage",
+                        args: { company: company },
+                        freeze: true,
+                        freeze_message: __("Importing stock levels from Sage…"),
+                        callback: function (r) {
+                            if (!r.message) return;
+                            const s = r.message;
+                            frappe.msgprint({
+                                title: __("Stock Import Complete"),
+                                message: `
+                                    <div style="font-size:13px;line-height:1.6;">
+                                        <p>Opening Stock reconciliation
+                                        <b>${frappe.utils.escape_html(s.reconciliation)}</b>
+                                        created for <b>${frappe.utils.escape_html(company)}</b>
+                                        into <b>${frappe.utils.escape_html(s.warehouse)}</b>.</p>
+                                        <ul>
+                                            <li>Imported: <b>${s.imported}</b></li>
+                                            <li>Skipped — not in ERPNext: <b>${s.skipped_missing.length}</b></li>
+                                            <li>Skipped — service items: <b>${s.skipped_service.length}</b></li>
+                                            <li>Skipped — zero qty: <b>${s.skipped_zero.length}</b></li>
+                                        </ul>
+                                    </div>`,
+                                indicator: "green",
+                            });
+                            frm.reload_doc();
+                        },
+                    });
+                }
+            );
+        },
+        __("Stock Setup")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Disable Sage Qty Tracking (per Active Company, runs once, gated on
+// the stock import having completed first).
+// ---------------------------------------------------------------------------
+function _add_disable_qty_tracking_button(frm) {
+    frm.add_custom_button(
+        __("Disable Sage Qty Tracking"),
+        function () {
+            const company = frm.doc.active_company;
+            if (!company) {
+                frappe.msgprint(__("Pick an Active Company on the Accounts tab first."));
+                return;
+            }
+            frappe.confirm(
+                __(
+                    "Tell Sage to stop tracking quantities for <b>{0}</b>'s items?<br><br>" +
+                        "After this, ERPNext is the <b>sole</b> stock authority for this " +
+                        "Company. Only run it once stock levels have been imported and " +
+                        "verified. This runs once.",
+                    [frappe.utils.escape_html(company)]
+                ),
+                function () {
+                    frappe.call({
+                        method: "erpnext_sbca.API.stock.disable_sage_qty_tracking",
+                        args: { company: company },
+                        freeze: true,
+                        freeze_message: __("Disabling Sage qty tracking…"),
+                        callback: function (r) {
+                            if (!r.message) return;
+                            const s = r.message;
+                            const errBlock =
+                                s.errors && s.errors.length
+                                    ? `<p style="color:#a00;">Errors: ${s.errors.length} — check the Error Log.</p>`
+                                    : "";
+                            frappe.msgprint({
+                                title: __("Sage Qty Tracking Disabled"),
+                                message: `
+                                    <div style="font-size:13px;line-height:1.6;">
+                                        <p>Sage qty tracking disabled for
+                                        <b>${frappe.utils.escape_html(company)}</b>.</p>
+                                        <p>Items sent: <b>${s.items_sent}</b> ·
+                                        Disabled: <b>${s.disabled}</b></p>
+                                        ${errBlock}
+                                    </div>`,
+                                indicator: "green",
+                            });
+                            frm.reload_doc();
+                        },
+                    });
+                }
+            );
+        },
+        __("Stock Setup")
+    );
 }

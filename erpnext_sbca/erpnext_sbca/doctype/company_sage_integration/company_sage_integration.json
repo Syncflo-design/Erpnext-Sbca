@@ -23,7 +23,9 @@
   "sage_pos_customer_name",
   "session_id",
   "strip_defaults_on_next_sync",
-  "setup_complete"
+  "setup_complete",
+  "stock_import_complete",
+  "sage_qty_tracking_disabled"
  ],
  "fields": [
   {
@@ -152,8 +154,26 @@
    "fieldtype": "Link",
    "label": "Default Warehouse",
    "options": "Warehouse",
-   "description": "Warehouse assigned to all Sales Order and Purchase Order items pulled from Sage. Must be set before SO/PO sync will run.",
+   "description": "Warehouse for this Company's Sage-pulled stock: SO/PO line items, and the one-time Import Stock Levels run on the Stock tab. Must be set before SO/PO sync or the stock import will run.",
    "in_list_view": 0
+  },
+  {
+   "default": "0",
+   "description": "Auto-set after a successful Import Stock Levels run on the Stock tab. Once true: the scheduled qty-on-hand pull skips this Company (ERPNext now owns the stock) and the import cannot be run again.",
+   "fieldname": "stock_import_complete",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Stock Import Complete",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Auto-set after a successful Disable Sage Qty Tracking run on the Stock tab. Once true, Sage no longer tracks quantities for this Company's items — ERPNext is the sole stock authority.",
+   "fieldname": "sage_qty_tracking_disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Sage Qty Tracking Disabled",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

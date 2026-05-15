@@ -37,6 +37,23 @@ def as_int(value):
     return 1 if value else 0
 
 
+def resolve_is_stock_item(item_data):
+    """Return 1 if Sage flags this item as physical (stock-tracked), else 0.
+
+    Sage's concept is "Physical" (True) vs service / "Do Not Track Balance"
+    (False). Pharoh's item endpoints may surface this under any of a few key
+    names depending on endpoint version — check them all, in order. Defaults
+    to 1 (physical) when nothing recognisable is present: the items being
+    migrated are stock the customer is currently tracking in Sage, so
+    physical is the safe default, and the Pharoh item endpoint should always
+    return the flag explicitly anyway.
+    """
+    for key in ("is_stock_item", "isStockItem", "physical", "Physical", "isPhysical"):
+        if key in item_data and item_data.get(key) is not None:
+            return 1 if item_data.get(key) else 0
+    return 1
+
+
 def is_sync_enabled(fieldname):
     """Return True if the given Erpnext Sbca Settings toggle is on.
 
