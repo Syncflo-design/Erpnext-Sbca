@@ -8,6 +8,7 @@ from erpnext_sbca.API.helper_function import (
     safe_strip,
     chunks,
     ensure_party_group,
+    fetch_all_pages,
 )
 
 
@@ -128,8 +129,10 @@ def get_supplier_from_sage():
 
             }
 
-            # Fetch suppliers from Sage
-            suppliers = make_post_request(supplier_url, json=payload)
+            # Fetch suppliers from Sage — Pharoh paginates this endpoint, so
+            # fetch_all_pages drives the skipQty loop and returns the
+            # combined supplier list.
+            suppliers = fetch_all_pages(supplier_url, payload)
 
             updated_suppliers = []
             created_suppliers = []

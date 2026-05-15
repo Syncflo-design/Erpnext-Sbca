@@ -3,7 +3,7 @@ from frappe.integrations.utils import (
 	make_post_request,
 )
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.helper_function import is_sync_enabled, fetch_all_pages
 
 def post_sales_order(doc, method):
     """Wrapper: enqueue the push so we don't block the Sales Order submit transaction."""
@@ -233,7 +233,7 @@ def get_sales_order_from_sage():
             try:
                 debug_start = f"API Start {company.company}: {frappe.utils.now()} URL={so_url[:50]}..."[:140]
                 frappe.log_error(debug_start, "Sage SO Sync Debug")
-                sales_orders = make_post_request(so_url, json=payload)
+                sales_orders = fetch_all_pages(so_url, payload)
                 debug_resp = f"API Resp {company.company}: {len(sales_orders) if sales_orders else 'None'} items"[:140]
                 frappe.log_error(debug_resp, "Sage SO Sync Debug")
             except Exception as api_e:

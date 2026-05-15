@@ -45,6 +45,7 @@ from erpnext_sbca.API.helper_function import (
     safe_strip,
     chunks,
     ensure_party_group,
+    fetch_all_pages,
 )
 
 
@@ -275,14 +276,9 @@ def get_customers_from_sage():
             }
             endpoint_url = f"{url}/api/CustomersSync/get-customers-for-erpnext?apikey={apikey}"
 
-            customers = make_post_request(endpoint_url, json=payload)
-
-            if not isinstance(customers, list):
-                frappe.log_error(
-                    title=f"Sage Customer Sync: unexpected response shape for {company.company}"[:140],
-                    message=f"Expected JSON array, got {type(customers).__name__}: {customers}",
-                )
-                continue
+            # Pharoh paginates this endpoint — fetch_all_pages drives the
+            # skipQty loop and returns the combined customer list.
+            customers = fetch_all_pages(endpoint_url, payload)
 
             created = []
             updated = []

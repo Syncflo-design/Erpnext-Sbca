@@ -71,6 +71,65 @@ def is_sync_enabled(fieldname):
     return bool(value)
 
 
+def fetch_all_pages(endpoint_url, payload):
+    """Fetch every page from a paginated Pharoh endpoint, return one combined list.
+
+    Pharoh's GET data endpoints use caller-driven pagination: they accept a
+    `skipQty` offset query parameter and return a paginated envelope
+
+        {"totalResults": <int>, "returnedResults": <int>, "items": [...]}
+
+    on the wire (camelCase — the .NET API serialises with the default
+    camelCase policy, confirmed against Startup.cs). This helper drives the
+    loop: it appends `&skipQty=`, accumulates every page's `items`, and stops
+    once it has them all.
+
+    `endpoint_url` must be the fully-built URL WITHOUT a skipQty parameter
+    (apikey, lastDate and any other params already included). Returns a flat
+    list of item dicts.
+
+    Raises (frappe.throw) if a page response is not the expected envelope —
+    that means the endpoint has not been migrated to pagination, or something
+    upstream is wrong, and silently returning [] would hide it.
+    """
+    import frappe
+    from frappe.integrations.utils import make_post_request
+
+    all_items = []
+    skip_qty = 0
+    while True:
+        page_url = f"{endpoint_url}&skipQty={skip_qty}"
+        data = make_post_request(page_url, json=payload)
+
+        if not isinstance(data, dict) or "items" not in data:
+            frappe.log_error(
+                title="Sage Sync: unexpected pagination response"[:140],
+                message=(
+                    f"Expected a paginated envelope "
+                    f"{{totalResults, returnedResults, items}} from "
+                    f"{endpoint_url}, got: {data!r}"
+                ),
+            )
+            frappe.throw(
+                "Sage endpoint returned an unexpected response shape — "
+                "expected a paginated object with an 'items' key. "
+                "Check the Error Log."
+            )
+
+        items = data.get("items") or []
+        all_items.extend(items)
+
+        returned = data.get("returnedResults") or 0
+        total = data.get("totalResults") or 0
+
+        # Done when the page came back empty, or we have now covered the total.
+        if returned == 0 or (skip_qty + returned) >= total:
+            break
+        skip_qty += returned
+
+    return all_items
+
+
 def ensure_party_group(group_doctype, group_name):
     """Return a valid leaf Customer/Supplier Group, creating it if missing.
 

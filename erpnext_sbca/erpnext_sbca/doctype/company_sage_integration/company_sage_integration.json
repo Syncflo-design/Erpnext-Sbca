@@ -25,6 +25,7 @@
   "strip_defaults_on_next_sync",
   "setup_complete",
   "stock_import_complete",
+  "confirm_production_cutover",
   "sage_qty_tracking_disabled"
  ],
  "fields": [
@@ -165,6 +166,14 @@
    "in_list_view": 1,
    "label": "Stock Import Complete",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "ARMING SWITCH for the irreversible production cutover. The integration points at the REAL Sage company even from sandbox/UAT — there is no sandbox Sage. While this is unticked, Disable Sage Qty Tracking is LOCKED and refuses to run. Tick this ONLY at real go-live, immediately before running Disable Sage Qty Tracking on the Stock tab. Leaving it unticked is what stops a sandbox test from permanently changing production Sage.",
+   "fieldname": "confirm_production_cutover",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Confirm Production Cutover (Arming Switch)"
   },
   {
    "default": "0",

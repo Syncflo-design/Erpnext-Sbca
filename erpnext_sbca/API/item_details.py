@@ -1,5 +1,5 @@
 import frappe
-from erpnext_sbca.API.helper_function import as_int, is_sync_enabled, safe_strip, chunks, resolve_is_stock_item
+from erpnext_sbca.API.helper_function import as_int, is_sync_enabled, safe_strip, chunks, resolve_is_stock_item, fetch_all_pages
 from frappe.integrations.utils import (
 	make_post_request,
 )
@@ -100,16 +100,9 @@ def get_item_inventory_qty_on_hand_from_sage(company):
         except (TypeError, ValueError):
             return 0.0
 
-    inventory = make_post_request(inventory_url, json=payload)
-    if not isinstance(inventory, list):
-        frappe.log_error(
-            title=f"Sage Pull Stock On Hand: bad response for {company}"[:140],
-            message=f"Expected a list from get-inventory-qtyonhand-for-erpnext, got: {inventory!r}",
-        )
-        frappe.throw(
-            f"Sage qty-on-hand endpoint returned an unexpected response for "
-            f"'{company}'. Check the Error Log."
-        )
+    # Pharoh paginates this endpoint — fetch_all_pages drives the skipQty
+    # loop and returns the combined list of qty-on-hand rows.
+    inventory = fetch_all_pages(inventory_url, payload)
 
     updated = 0
     skipped = 0
@@ -398,8 +391,10 @@ def update_prices():
         }
 
         try:
-            # Fetch items from Sage
-            inventory_items = make_post_request(inventory_url, json=payload)
+            # Fetch items from Sage — Pharoh paginates this endpoint, so
+            # fetch_all_pages drives the skipQty loop and returns the
+            # combined list.
+            inventory_items = fetch_all_pages(inventory_url, payload)
 
             updated_items = []
             created_items = []

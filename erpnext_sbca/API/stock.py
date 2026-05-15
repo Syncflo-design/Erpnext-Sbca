@@ -27,22 +27,28 @@ operating on the Active Company:
 There is no reset path by design: a botched first attempt is recovered by
 re-running on a fresh sandbox instance, not by un-setting the flag.
 
-PHAROH ENDPOINTS (your team writes these - the shapes below are what this code
-expects; adjust here once the real contracts land):
+PHAROH ENDPOINTS (live on the merged InventorySyncController - the shapes below
+are what this code expects):
 
-  POST /api/StockSync/get-stock-levels-for-erpnext?apikey=...
+  POST /api/InventorySync/get-stock-levels-for-erpnext?apikey=...&skipQty=...
     body:    {loginName, loginPwd, useOAuth, sessionToken, provider}
-    returns: [{"item_code": "...", "quantity": <num>, "valuation_rate": <num>}, ...]
+    returns: a paginated envelope
+             {"totalResults": <int>, "returnedResults": <int>,
+              "items": [{"item_code": "...", "quantity": <num>,
+                         "valuation_rate": <num>}, ...]}
              valuation_rate is the Sage unit cost - required so ERPNext values
              the opening stock correctly and the GL posts the right amount.
+             fetch_all_pages() drives the skipQty loop and returns the
+             combined items list.
 
-  POST /api/StockSync/disable-qty-tracking?apikey=...
+  POST /api/InventorySync/disable-qty-tracking?apikey=...
     body:    {"credentials": {...}, "itemCodes": ["...", ...]}
     returns: {"success": true, "disabled": <int>, "errors": [<str>, ...]}
 """
 
 import frappe
 from frappe.integrations.utils import make_post_request
+from erpnext_sbca.API.helper_function import fetch_all_pages
 
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
 
@@ -110,8 +116,9 @@ def get_stock_setup_status(company):
       stock_import_complete       - Import Stock Levels has run
       sage_qty_tracking_disabled  - Disable Sage Qty Tracking has run
       stock_item_count            - physical (is_stock_item) items in the system
+      cutover_armed               - the Confirm Production Cutover arming switch
       ready_for_import            - has warehouse AND not yet imported
-      ready_for_disable           - imported AND not yet disabled
+      ready_for_disable           - imported AND armed AND not yet disabled
     """
     if not company:
         return {}
@@ -123,6 +130,7 @@ def get_stock_setup_status(company):
             "default_warehouse": None,
             "stock_import_complete": False,
             "sage_qty_tracking_disabled": False,
+            "cutover_armed": False,
             "stock_item_count": 0,
             "ready_for_import": False,
             "ready_for_disable": False,
@@ -135,15 +143,21 @@ def get_stock_setup_status(company):
     default_warehouse = integration.get("default_warehouse")
     stock_import_complete = bool(integration.get("stock_import_complete"))
     sage_qty_tracking_disabled = bool(integration.get("sage_qty_tracking_disabled"))
+    cutover_armed = bool(integration.get("confirm_production_cutover"))
 
     return {
         "has_integration": True,
         "default_warehouse": default_warehouse,
         "stock_import_complete": stock_import_complete,
         "sage_qty_tracking_disabled": sage_qty_tracking_disabled,
+        "cutover_armed": cutover_armed,
         "stock_item_count": stock_item_count,
         "ready_for_import": bool(default_warehouse) and not stock_import_complete,
-        "ready_for_disable": stock_import_complete and not sage_qty_tracking_disabled,
+        "ready_for_disable": (
+            stock_import_complete
+            and cutover_armed
+            and not sage_qty_tracking_disabled
+        ),
     }
 
 
@@ -185,19 +199,12 @@ def import_stock_levels_from_sage(company):
 
     apikey = integration.get_password("api_key")
     endpoint_url = (
-        f"{url}/api/StockSync/get-stock-levels-for-erpnext?apikey={apikey}"
+        f"{url}/api/InventorySync/get-stock-levels-for-erpnext?apikey={apikey}"
     )
-    levels = make_post_request(endpoint_url, json=_credentials(integration))
-
-    if not isinstance(levels, list):
-        frappe.log_error(
-            title=f"Sage Stock Import: bad response for {company}"[:140],
-            message=f"Expected a list from get-stock-levels-for-erpnext, got: {levels!r}",
-        )
-        frappe.throw(
-            f"Sage stock-levels endpoint returned an unexpected response for "
-            f"'{company}'. Check the Error Log."
-        )
+    # Pharoh paginates this endpoint — fetch_all_pages drives the skipQty
+    # loop and returns the combined list of stock-level rows. The whole list
+    # is needed up front here: this builds ONE Opening Stock reconciliation.
+    levels = fetch_all_pages(endpoint_url, _credentials(integration))
 
     sr = frappe.new_doc("Stock Reconciliation")
     sr.company = company
@@ -287,10 +294,18 @@ def import_stock_levels_from_sage(company):
 def disable_sage_qty_tracking(company):
     """Tell Sage to stop tracking quantities for this Company's items.
 
-    Gated on stock_import_complete = 1 - ERPNext must already hold the stock
-    before Sage's tracking is switched off. Sends the Sage-managed physical
-    item codes to Pharoh, which disables qty tracking per item in Sage. Sets
-    sage_qty_tracking_disabled = 1 on success.
+    DANGEROUS: this permanently changes the REAL Sage company. There is no
+    sandbox Sage — sandbox/UAT ERPNext points at the same Sage company as
+    production. Three guards stand between a button click and Sage:
+
+      1. stock_import_complete must be 1 — ERPNext must already hold the
+         stock before Sage's tracking is switched off.
+      2. confirm_production_cutover (the arming switch) must be ticked — a
+         deliberate, manual step done ONLY at real go-live, never in sandbox.
+      3. sage_qty_tracking_disabled must be 0 — can't run twice.
+
+    Sends the Sage-managed physical item codes to Pharoh, which disables qty
+    tracking per item in Sage. Sets sage_qty_tracking_disabled = 1 on success.
     """
     integration = _get_integration(company)
     if not integration:
@@ -300,6 +315,16 @@ def disable_sage_qty_tracking(company):
         frappe.throw(
             f"Run Import Stock Levels for '{company}' first. Sage qty "
             f"tracking can't be disabled until ERPNext holds the stock."
+        )
+
+    if not integration.get("confirm_production_cutover"):
+        frappe.throw(
+            f"PRODUCTION CUTOVER NOT ARMED for '{company}'.\n\n"
+            f"Disable Sage Qty Tracking permanently changes the REAL Sage "
+            f"company — there is no separate sandbox Sage. To unlock it, tick "
+            f"'Confirm Production Cutover (Arming Switch)' on the '{company}' "
+            f"Company Sage Integration row (Connection tab) and save. Do that "
+            f"ONLY at real go-live, never during sandbox or UAT testing."
         )
 
     if integration.get("sage_qty_tracking_disabled"):
@@ -324,7 +349,7 @@ def disable_sage_qty_tracking(company):
 
     apikey = integration.get_password("api_key")
     endpoint_url = (
-        f"{url}/api/StockSync/disable-qty-tracking?apikey={apikey}"
+        f"{url}/api/InventorySync/disable-qty-tracking?apikey={apikey}"
     )
     payload = {
         "credentials": _credentials(integration),

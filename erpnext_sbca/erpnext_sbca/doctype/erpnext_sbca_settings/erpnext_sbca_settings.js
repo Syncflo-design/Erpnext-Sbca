@@ -559,9 +559,23 @@ function _render_stock_status(frm) {
                     : `<span style="color:#a00;">blocked — no Default Warehouse set on the Connection tab</span>`;
             const disableLabel = s.sage_qty_tracking_disabled
                 ? `<span style="color:#1b7a3a;">done</span>`
-                : s.stock_import_complete
-                    ? `<span style="color:#a05d00;">ready to run</span>`
-                    : `<span style="color:#6c757d;">waiting on stock import</span>`;
+                : !s.stock_import_complete
+                    ? `<span style="color:#6c757d;">waiting on stock import</span>`
+                    : !s.cutover_armed
+                        ? `<span style="color:#a00;">LOCKED — arming switch off</span>`
+                        : `<span style="color:#a05d00;">ARMED — ready to run</span>`;
+
+            // Loud, unmissable banner about the arming switch — this is the
+            // guard that stops a sandbox test from wrecking production Sage.
+            const armingBanner = s.sage_qty_tracking_disabled
+                ? ""
+                : s.cutover_armed
+                    ? `<div style="margin-top:8px;padding:8px 10px;background:#fdecea;border:1px solid #f5c2c0;border-radius:4px;color:#a00;font-weight:600;">
+                           Production Cutover is ARMED. Disable Sage Qty Tracking will permanently change the REAL Sage company. Untick the arming switch on the Connection tab if this is not a real go-live.
+                       </div>`
+                    : `<div style="margin-top:8px;padding:8px 10px;background:#eef0f3;border:1px solid #d5d8dc;border-radius:4px;color:#555;">
+                           Production Cutover is <b>not armed</b> — Disable Sage Qty Tracking is locked. At real go-live, tick <b>Confirm Production Cutover (Arming Switch)</b> on this Company's row in the Connection tab. (Sandbox and production share the same Sage company — leaving this unticked is what protects production.)
+                       </div>`;
 
             const html = `
                 <div style="font-size:13px;line-height:1.6;margin:8px 0;padding:12px;background:#f8f9fa;border-radius:6px;">
@@ -570,6 +584,7 @@ function _render_stock_status(frm) {
                     <div>Physical (stock) items in system: <b>${s.stock_item_count}</b></div>
                     <div style="margin-top:6px;">Step 1 — Import Stock Levels: ${importLabel}</div>
                     <div>Step 2 — Disable Sage Qty Tracking: ${disableLabel}</div>
+                    ${armingBanner}
                     <div style="color:#6c757d;font-size:11px;margin-top:8px;">
                         <b>Import Stock Levels</b> creates one Opening Stock reconciliation
                         into the Default Warehouse using Sage's quantities and unit costs,
@@ -655,15 +670,37 @@ function _add_disable_qty_tracking_button(frm) {
                 frappe.msgprint(__("Pick an Active Company on the Accounts tab first."));
                 return;
             }
-            frappe.confirm(
-                __(
-                    "Tell Sage to stop tracking quantities for <b>{0}</b>'s items?<br><br>" +
-                        "After this, ERPNext is the <b>sole</b> stock authority for this " +
-                        "Company. Only run it once stock levels have been imported and " +
-                        "verified. This runs once.",
-                    [frappe.utils.escape_html(company)]
-                ),
-                function () {
+            const d = new frappe.ui.Dialog({
+                title: __("Disable Sage Qty Tracking — PRODUCTION CUTOVER"),
+                fields: [
+                    {
+                        fieldtype: "HTML",
+                        options: `
+                            <div style="font-size:13px;line-height:1.6;">
+                                <p style="color:#a00;font-weight:600;">This permanently changes the REAL Sage company.</p>
+                                <p>Sandbox/UAT and production point at the <b>same</b> Sage company —
+                                there is no separate sandbox Sage. This tells Sage to stop tracking
+                                quantities for <b>${frappe.utils.escape_html(company)}</b>'s items.
+                                After it, ERPNext is the <b>sole</b> stock authority.</p>
+                                <p><b>Only run this at real go-live.</b> It also requires the
+                                <b>Confirm Production Cutover (Arming Switch)</b> on this Company's
+                                Sage Integration row to be ticked — if it isn't, this will refuse.</p>
+                                <p>Type <b>DISABLE TRACKING</b> (all caps) below to confirm.</p>
+                            </div>`,
+                    },
+                    {
+                        fieldtype: "Data",
+                        fieldname: "confirm",
+                        label: __("Type DISABLE TRACKING"),
+                        reqd: 1,
+                    },
+                ],
+                primary_action_label: __("Disable Sage Qty Tracking"),
+                primary_action(values) {
+                    if (values.confirm !== "DISABLE TRACKING") {
+                        frappe.msgprint(__("Type exactly DISABLE TRACKING (uppercase) to proceed."));
+                        return;
+                    }
                     frappe.call({
                         method: "erpnext_sbca.API.stock.disable_sage_qty_tracking",
                         args: { company: company },
@@ -688,11 +725,13 @@ function _add_disable_qty_tracking_button(frm) {
                                     </div>`,
                                 indicator: "green",
                             });
+                            d.hide();
                             frm.reload_doc();
                         },
                     });
-                }
-            );
+                },
+            });
+            d.show();
         },
         __("Stock Setup")
     );

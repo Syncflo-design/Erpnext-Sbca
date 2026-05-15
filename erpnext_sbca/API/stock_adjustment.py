@@ -10,7 +10,7 @@ Triggered by:
 Gated by the `push_stock_adjustment_on_submit` toggle on Erpnext Sbca Settings.
 Defaults to OFF until Pharoh's stock-adjustment endpoint is live.
 
-Pharoh endpoint: POST /api/StockAdjustmentSync/post-stock-adjustment-to-sage
+Pharoh endpoint: POST /api/InventorySync/post-financial-stock-reconciliation-to-sage
 
 DESIGN PRINCIPLE
 ----------------
@@ -88,7 +88,7 @@ PREREQUISITES
 -------------
 - Account sync must have run so every GL account carries custom_sage_account_id.
 - A Company Sage Integration row must exist for the document's company.
-- Pharoh's /api/StockAdjustmentSync/post-stock-adjustment-to-sage endpoint
+- Pharoh's /api/InventorySync/post-financial-stock-reconciliation-to-sage endpoint
   must be live, returning {"success": true, "sageOrderId": ..., "documentNumber": ...}.
   Until then, leave the push_stock_adjustment_on_submit toggle OFF in Settings.
 """
@@ -346,7 +346,7 @@ def _post_stock_adjustment_worker(doctype, doc_name):
         }
 
         endpoint_url = (
-            f"{url}/api/StockAdjustmentSync/post-stock-adjustment-to-sage"
+            f"{url}/api/InventorySync/post-financial-stock-reconciliation-to-sage"
             f"?apikey={apikey}"
         )
 
