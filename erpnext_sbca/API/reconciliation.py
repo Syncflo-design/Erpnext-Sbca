@@ -28,8 +28,10 @@ Sage's CustomerTransactionListing / SupplierTransactionListing reports return
 a per-party object that already carries OpeningBalance + ClosingBalance, plus
 a nested Transactions[] detail array. Pharoh strips the Transactions detail
 (ERPNext does not need it) and hands back ONLY the per-party summary for the
-parties with movement in the period, shaped:
+parties with movement in the period. The endpoints are paginated -- a
+{totalResults, returnedResults, items} envelope, each item shaped:
   { sageId, name, openingBalance, closingBalance }   (+ balance dates / currency)
+fetch_all_pages drives the skipQty loop and returns the combined party list.
 ERPNext matches the party on sageId / name and uses closingBalance for the delta.
 
 PER-PARTY LOGIC
@@ -84,7 +86,7 @@ from frappe.utils import (
 )
 
 url = frappe.db.get_single_value("Erpnext Sbca Settings", "url")
-from erpnext_sbca.API.helper_function import is_sync_enabled
+from erpnext_sbca.API.helper_function import is_sync_enabled, fetch_all_pages
 
 
 # Exact account_name of the per-company clearing account. The reconciliation
@@ -350,11 +352,9 @@ def _reconcile_party_type(
     endpoint_url = f"{url}/api/{_PHAROH_PATHS[party_type]}?apikey={apikey}"
 
     try:
-        response = make_post_request(
-            endpoint_url,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-        )
+        # Pharoh paginates these endpoints — fetch_all_pages drives the
+        # skipQty loop and returns the combined list of party balances.
+        response = fetch_all_pages(endpoint_url, payload)
     except Exception as http_err:
         body = ""
         try:
@@ -363,7 +363,7 @@ def _reconcile_party_type(
             body = str(http_err)
         frappe.log_error(
             title=(
-                f"Sage Reconciliation: Pharoh HTTP error ({party_type}) "
+                f"Sage Reconciliation: Pharoh error ({party_type}) "
                 f"for '{company}'"
             )[:140],
             message=(
@@ -371,19 +371,6 @@ def _reconcile_party_type(
                 f"Endpoint: {endpoint_url}\nError: {http_err}\n"
                 f"Response body: {body[:1500]}\n"
                 f"Payload: {json.dumps(payload)[:1500]}"
-            ),
-        )
-        return False
-
-    if not isinstance(response, list):
-        frappe.log_error(
-            title=(
-                f"Sage Reconciliation: bad Pharoh response ({party_type}) "
-                f"for '{company}'"
-            )[:140],
-            message=(
-                f"Expected a JSON array of party balances, got "
-                f"{type(response).__name__}: {str(response)[:1000]}"
             ),
         )
         return False

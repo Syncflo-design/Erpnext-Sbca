@@ -200,9 +200,10 @@ def get_addition_prices_from_sage():
         for pl_id in pricelist_ids:
             item_prices_url = f"{url}/api/AdditionalItemPricesSync/get-additional-prices-for-erpnext?apikey={apikey}&pricelistID={pl_id}"
 
-            # ✅ Add timeout and retry
             try:
-                item_prices_response = make_post_request(item_prices_url, json=login_payload)  # timeout in seconds
+                # Pharoh paginates this endpoint — fetch_all_pages drives the
+                # skipQty loop and returns the combined item-prices list.
+                item_prices_response = fetch_all_pages(item_prices_url, login_payload)
             except Exception as e:
                 errors.append(f"Failed fetching item prices for Pricelist {pl_id}: {e}")
                 continue

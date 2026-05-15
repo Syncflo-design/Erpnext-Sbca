@@ -36,11 +36,12 @@ def get_supplier_categories_from_sage():
     them lazily via ensure_party_group, so the ordering is a nicety).
 
     Pharoh endpoint: POST /api/SuppliersSync/get-supplier-categories-for-erpnext
-    Response: a bare JSON array of {description, id, modified, created}. Only
-    `description` (the category name) is used -- each becomes a leaf Supplier
-    Group under "All Supplier Groups". The Sage `id` is intentionally not
-    stored: supplier records carry the category by name, so the name is the
-    join key.
+    Response: a paginated envelope {totalResults, returnedResults, items},
+    each item {description, id, modified, created}. fetch_all_pages drives the
+    skipQty loop and returns the combined list. Only `description` (the
+    category name) is used -- each becomes a leaf Supplier Group under "All
+    Supplier Groups". The Sage `id` is intentionally not stored: supplier
+    records carry the category by name, so the name is the join key.
     """
     if not is_sync_enabled("sync_supplier_categories"):
         return
@@ -68,19 +69,9 @@ def get_supplier_categories_from_sage():
                 f"?apikey={apikey}"
             )
 
-            categories = make_post_request(endpoint_url, json=payload)
-            if not isinstance(categories, list):
-                frappe.log_error(
-                    title=(
-                        f"Sage Supplier Category Sync: unexpected response "
-                        f"for {company.company}"
-                    )[:140],
-                    message=(
-                        f"Expected a JSON array, got "
-                        f"{type(categories).__name__}: {categories}"
-                    ),
-                )
-                continue
+            # Pharoh paginates this endpoint — fetch_all_pages drives the
+            # skipQty loop and returns the combined category list.
+            categories = fetch_all_pages(endpoint_url, payload)
 
             ensured = 0
             for cat in categories:

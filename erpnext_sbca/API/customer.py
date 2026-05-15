@@ -96,11 +96,13 @@ def get_customer_categories_from_sage():
     hard requirement).
 
     Pharoh endpoint: POST /api/CustomersSync/get-customer-categories-for-erpnext
-    Response: a bare JSON array of {description, id, modified, created}. Only
-    `description` (the category name) is used -- each becomes a leaf Customer
-    Group under "All Customer Groups". The Sage `id` is intentionally not
-    stored: customer records carry the category by name, so the name is the
-    join key (renames are rare -- revisit id-tracking only if that changes).
+    Response: a paginated envelope {totalResults, returnedResults, items},
+    each item {description, id, modified, created}. fetch_all_pages drives the
+    skipQty loop and returns the combined list. Only `description` (the
+    category name) is used -- each becomes a leaf Customer Group under "All
+    Customer Groups". The Sage `id` is intentionally not stored: customer
+    records carry the category by name, so the name is the join key (renames
+    are rare -- revisit id-tracking only if that changes).
     """
     if not is_sync_enabled("sync_customer_categories"):
         return
@@ -128,19 +130,9 @@ def get_customer_categories_from_sage():
                 f"?apikey={apikey}"
             )
 
-            categories = make_post_request(endpoint_url, json=payload)
-            if not isinstance(categories, list):
-                frappe.log_error(
-                    title=(
-                        f"Sage Customer Category Sync: unexpected response "
-                        f"for {company.company}"
-                    )[:140],
-                    message=(
-                        f"Expected a JSON array, got "
-                        f"{type(categories).__name__}: {categories}"
-                    ),
-                )
-                continue
+            # Pharoh paginates this endpoint — fetch_all_pages drives the
+            # skipQty loop and returns the combined category list.
+            categories = fetch_all_pages(endpoint_url, payload)
 
             ensured = 0
             for cat in categories:
